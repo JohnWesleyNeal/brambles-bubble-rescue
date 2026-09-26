@@ -223,9 +223,12 @@ button:disabled { cursor: default; }
   box-shadow: 0 11px 0 #31715c91, 0 22px 24px #1e594533;
 }
 .home-panel .secondary-button { margin-top: 14px; }
+.home-panel .paused-note { margin: 9px 0 -5px; color: #42745f; font-size: 11px; font-weight: 800; }
 .home-quick-actions, .chapter-quick-actions { display: flex; justify-content: center; gap: 13px; margin-top: 12px; }
 .home-quick-actions button, .chapter-quick-actions button { border: 0; background: none; color: #2c7058; font-size: 12px; font-weight: 900; text-decoration: underline; }
 .journey-progress { margin-top: 15px; font-size: 11px; font-weight: 800; color: #467361; }
+.progress-track { height: 9px; margin: 8px auto 0; overflow: hidden; border-radius: 8px; background: #d3e6d2; box-shadow: inset 0 1px 3px #779d8755; }
+.progress-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #d49452, #e2b65d); transition: width .3s ease; }
 .secondary-button {
   width: 100%;
   min-height: 41px;
@@ -278,6 +281,8 @@ button:disabled { cursor: default; }
 .level-tile span { font-weight: 900; font-size: 17px; line-height: 1.1; }
 .level-tile small { font-size: 9px; color: #b16b43; white-space: nowrap; }
 .level-tile.locked { opacity: .46; filter: grayscale(.4); }
+.level-tile.paused { border-color: #d18c51; background: #fff0c5; box-shadow: 0 3px 0 #b7764b; }
+.level-tile.paused small { color: #9f553d; font-weight: 900; }
 .home-footer { position: absolute; bottom: 1%; color: #f8f8d8; font-size: 9px; font-weight: 700; letter-spacing: .2px; }
 
 .chapter-overlay { background: linear-gradient(#d9f0dbcc, #c7e8cbd9 48%, #3d8268d9); }
@@ -339,6 +344,12 @@ button:disabled { cursor: default; }
 .result-card .reward-note { margin: -8px auto 14px; color: #a65355; font-weight: 900; }
 .result-card .secondary-button { margin-top: 13px; }
 .result-links { display: flex; justify-content: center; gap: 20px; }
+.pause-card h2 { margin-top: 15px; }
+.pause-card p { margin-bottom: 12px; }
+.pause-card .result-links { gap: 11px; }
+.pause-card .result-links .text-button { font-size: 12px; }
+.pause-saved { margin: 5px auto 19px; padding: 9px; border-radius: 12px; background: #e7f2dc; color: #356c54; font-size: 12px; font-weight: 800; }
+.pause-card #pause-home { margin-top: 13px; }
 .guide-card { padding-top: 32px; }
 .guide-card h2 { margin-top: 22px; }
 .guide-card p { max-width: 245px; margin: 17px auto 25px; }

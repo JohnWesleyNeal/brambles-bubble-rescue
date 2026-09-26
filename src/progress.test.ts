@@ -44,4 +44,15 @@ describe('saved journey', () => {
     refillHearts(save);
     expect(save.hearts).toBe(25);
   });
+
+  it('retains a paused attempt alongside existing v3 stars and inventory', () => {
+    const saved = migrateSave({
+      version: 3, unlocked: 2, stars: [3], hearts: 9,
+      inventory: { rainbow: 2, double: 1, bonk: 1 },
+      activeRun: { version: 1, levelId: 2, actions: [{ type: 'swap' }] }
+    });
+    expect(saved.stars[0]).toBe(3);
+    expect(saved.inventory.rainbow).toBe(2);
+    expect(saved.activeRun?.actions).toEqual([{ type: 'swap' }]);
+  });
 });

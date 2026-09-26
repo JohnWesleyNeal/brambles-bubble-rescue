@@ -1,5 +1,6 @@
 import { boosterById, type BoosterId } from './boosters';
 import { levels } from './levels';
+import type { ActiveRun } from './run';
 
 export interface SaveData {
   version: 3;
@@ -10,6 +11,7 @@ export interface SaveData {
   tutorialsSeen: string[];
   hearts: number;
   inventory: Record<BoosterId, number>;
+  activeRun?: ActiveRun;
 }
 
 export const saveKey = 'bramble-bubbles-save-v3';
@@ -43,7 +45,9 @@ export function migrateSave(value: unknown): SaveData {
       rainbow: data.version === 3 ? count(inventory.rainbow) : 1,
       double: data.version === 3 ? count(inventory.double) : 1,
       bonk: data.version === 3 ? count(inventory.bonk) : 1
-    }
+    },
+    ...(data.version === 3 && data.activeRun && typeof data.activeRun === 'object'
+      ? { activeRun: data.activeRun as ActiveRun } : {})
   };
 }
 

@@ -7,12 +7,17 @@ import { gameContent } from './content';
 import { boosters, boosterById, type BoosterId } from './boosters';
 import { ruleById, ruleForBubble, rules, type RuleId } from './rules';
 import { buyBooster, consumeBooster, loadSave, recordLoss, recordWin, refillHearts, storeSave } from './progress';
+import { restoreActiveRun, type RestoredRun, type RunAction } from './run';
 import type { ShotTrace } from './shot';
 import './style.css';
 
 registerSW({ immediate: true });
 const BASE = import.meta.env.BASE_URL;
 const save = loadSave();
+if (save.activeRun && !restoreActiveRun(save.activeRun, levels, save.unlocked)) {
+  delete save.activeRun;
+  storeSave(save);
+}
 
 const palette: Record<BubbleColor, { fill: number; edge: number; glyph: string; ink: string }> = {
   R: { fill: 0xf48b87, edge: 0xa94e65, glyph: '♥', ink: '#78394b' },
@@ -90,7 +95,9 @@ class PlayScene extends Phaser.Scene {
   private nextBubble?: Phaser.GameObjects.Container;
   private wildLabel?: Phaser.GameObjects.Text;
   private epoch = 0;
-  private pendingLevel?: number;
+  private pendingLevel?: { index: number; restored?: RestoredRun };
+  private pendingAction?: () => void;
+  private runActions: RunAction[] = [];
   private inspectMode = false;
   onInspect?: (rule: RuleId, bubble?: Bubble) => void;
 
@@ -119,17 +126,21 @@ class PlayScene extends Phaser.Scene {
     });
     this.input.on('pointerupoutside', () => { this.aiming = false; });
     if (this.pendingLevel !== undefined) {
-      const index = this.pendingLevel;
+      const { index, restored } = this.pendingLevel;
       this.pendingLevel = undefined;
-      this.startLevel(index);
+      this.startLevel(index, restored);
     }
   }
 
-  startLevel(index: number): void {
-    if (!this.boardLayer) { this.pendingLevel = index; return; }
+  startLevel(index: number, restored?: RestoredRun): void {
+    if (!this.boardLayer) { this.pendingLevel = { index, restored }; return; }
     this.epoch += 1;
+    this.pendingAction = undefined;
     this.levelIndex = index;
-    this.engine = new GameEngine(levels[index]);
+    this.engine = restored?.engine ?? new GameEngine(levels[index]);
+    this.runActions = restored?.actions.slice() ?? [];
+    save.activeRun = { version: 1, levelId: levels[index].id, actions: this.runActions.slice() };
+    storeSave(save);
     this.setInspectMode(false);
     this.aiming = false;
     this.resolving = false;
@@ -147,6 +158,7 @@ class PlayScene extends Phaser.Scene {
   returnHome(): void {
     this.epoch += 1;
     this.pendingLevel = undefined;
+    this.pendingAction = undefined;
     this.engine = undefined;
     this.setInspectMode(false);
     this.aiming = false;
@@ -161,21 +173,29 @@ class PlayScene extends Phaser.Scene {
     this.wildLabel?.destroy();
   }
 
+  private remember(action: RunAction): void {
+    this.runActions.push(action);
+    save.activeRun = { version: 1, levelId: this.levelIndex + 1, actions: this.runActions.slice() };
+    storeSave(save);
+  }
+
   swap(): void {
-    if (!this.engine || this.flying || this.resolving) return;
+    if (!this.engine || this.engine.won || this.engine.lost || this.flying || this.resolving) return;
     this.engine.swap();
+    this.remember({ type: 'swap' });
     this.drawShooter();
     playSound('swap');
   }
   chooseWild(color: BubbleColor): boolean {
     if (!this.engine || this.flying || this.resolving) return false;
     const chosen = this.engine.chooseWild(color);
-    if (chosen) { this.drawShooter(); updateHud(this); playSound('bonus'); }
+    if (chosen) { this.remember({ type: 'wild', color }); this.drawShooter(); updateHud(this); playSound('bonus'); }
     return chosen;
   }
   armBooster(id: BoosterId, color?: BubbleColor): boolean {
     if (!this.engine || this.flying || this.resolving || save.inventory[id] < 1) return false;
     if (!this.engine.armBooster(id, color)) return false;
+    this.remember({ type: 'booster', id, ...(color ? { color } : {}) });
     this.drawShooter();
     this.drawAim();
     updateHud(this);
@@ -183,12 +203,20 @@ class PlayScene extends Phaser.Scene {
     return true;
   }
   cancelSpecial(): void {
+    if (!this.engine?.armedBooster && !this.engine?.wildColor) return;
     this.engine?.cancelSpecialShot();
+    this.remember({ type: 'cancel' });
     this.drawShooter();
     this.drawAim();
     updateHud(this);
   }
   isBusy(): boolean { return Boolean(this.flying || this.resolving); }
+  deferUntilReady(action: () => void): boolean {
+    if (!this.isBusy()) return false;
+    this.pendingAction = action;
+    notice('Opening after this bubble lands.');
+    return true;
+  }
   setInspectMode(enabled: boolean): void {
     this.inspectMode = enabled;
     this.aiming = false;
@@ -216,14 +244,21 @@ class PlayScene extends Phaser.Scene {
 
   private drawScenery(): void {
     this.sceneryLayer.removeAll(true);
+    const chapter = Math.floor(this.levelIndex / 10);
+    const themes = [
+      { fill: 0xfaf5dc, line: 0x3a866b, ink: '#346c5b', name: 'MEADOW DAYS', symbol: '✿' },
+      { fill: 0xffedca, line: 0xa9804d, ink: '#89613c', name: 'HONEYCOMB GROVE', symbol: '⬢' },
+      { fill: 0xe1eff0, line: 0x5c8d99, ink: '#397281', name: 'BREEZY BRAMBLES', symbol: '↗' }
+    ];
+    const theme = themes[chapter];
     const panel = this.add.graphics();
-    panel.fillStyle(0xfaf5dc, .48).fillRoundedRect(19, 159, 352, 500, 28);
+    panel.fillStyle(theme.fill, .54).fillRoundedRect(19, 159, 352, 500, 28);
     panel.lineStyle(3, 0xffffff, .55).strokeRoundedRect(19, 159, 352, 500, 28);
-    panel.lineStyle(2, 0x3a866b, .24).strokeRoundedRect(24, 164, 342, 490, 24);
+    panel.lineStyle(2, theme.line, .35).strokeRoundedRect(24, 164, 342, 490, 24);
     panel.lineStyle(2, 0x7b8665, .5).lineBetween(31, 635, 359, 635);
     this.sceneryLayer.add(panel);
-    this.sceneryLayer.add(this.add.text(195, 167, 'FREE THE BEE FRIENDS', {
-      fontFamily: 'Trebuchet MS, sans-serif', fontSize: '12px', fontStyle: 'bold', color: '#346c5b', letterSpacing: 2
+    this.sceneryLayer.add(this.add.text(195, 167, `${theme.symbol}  ${theme.name}  ${theme.symbol}`, {
+      fontFamily: 'Trebuchet MS, sans-serif', fontSize: '11px', fontStyle: 'bold', color: theme.ink, letterSpacing: 1.6
     }).setOrigin(.5, 0));
     this.sceneryLayer.add(this.add.image(61, 744, 'bramble').setDisplaySize(102, 107));
     const sling = this.add.graphics();
@@ -338,7 +373,24 @@ class PlayScene extends Phaser.Scene {
     shot.sprite.destroy();
     this.flying = undefined;
     const result = this.engine.fire(shot.angle);
-    if (result.booster) { consumeBooster(save, result.booster); storeSave(save); }
+    if (result.booster) consumeBooster(save, result.booster);
+    let stars = 0;
+    let firstClear = false;
+    if (result.won) {
+      const margin = this.engine.level.shots - this.engine.level.par;
+      const used = this.engine.turns;
+      stars = used <= this.engine.level.par ? 3 : used <= this.engine.level.par + Math.floor(margin / 2) ? 2 : 1;
+      firstClear = !save.stars[this.levelIndex];
+      recordWin(save, this.levelIndex, stars);
+      delete save.activeRun;
+    } else if (result.lost) {
+      recordLoss(save, this.levelIndex);
+      delete save.activeRun;
+    } else {
+      this.runActions.push({ type: 'fire', angle: shot.angle });
+      save.activeRun = { version: 1, levelId: this.levelIndex + 1, actions: this.runActions.slice() };
+    }
+    storeSave(save);
     this.resolving = true;
     this.drawBoard();
     this.drawShooter();
@@ -349,26 +401,46 @@ class PlayScene extends Phaser.Scene {
     if ((result.settled?.bonusShots ?? 0) + (result.turn?.bonusShots ?? 0)) playSound('bonus');
     if (result.turn?.moved) playSound('wind');
     this.animateCleared(result);
+    this.showShotFeedback(result);
     const epoch = this.epoch;
     this.time.delayedCall(result.settled?.popped.length ? 590 : 260, () => {
       if (epoch !== this.epoch) return;
       this.resolving = false;
       this.drawAim();
       if (result.won) {
-        const margin = this.engine!.level.shots - this.engine!.level.par;
-        const used = this.engine!.turns;
-        const stars = used <= this.engine!.level.par ? 3 : used <= this.engine!.level.par + Math.floor(margin / 2) ? 2 : 1;
-        const firstClear = !save.stars[this.levelIndex];
-        recordWin(save, this.levelIndex, stars);
-        storeSave(save);
+        this.pendingAction = undefined;
         playSound('win');
         showResult(true, this.levelIndex, stars, firstClear);
       } else if (result.lost) {
-        recordLoss(save, this.levelIndex);
-        storeSave(save);
+        this.pendingAction = undefined;
         playSound('fail');
         showResult(false, this.levelIndex, 0);
+      } else {
+        const action = this.pendingAction;
+        this.pendingAction = undefined;
+        action?.();
       }
+    });
+  }
+  private showShotFeedback(result: FireResult): void {
+    const freed = (result.settled?.beesFreed ?? 0) + (result.turn?.beesFreed ?? 0);
+    const bonus = (result.settled?.bonusShots ?? 0) + (result.turn?.bonusShots ?? 0);
+    const cracked = result.settled?.cracked.length ?? 0;
+    const dropped = (result.settled?.dropped.length ?? 0) + (result.turn?.dropped.length ?? 0);
+    const labels: string[] = [];
+    if (freed) labels.push(freed === 1 ? 'Bee friend home! 🐝' : `${freed} bee friends home! 🐝`);
+    if (bonus) labels.push(`+${bonus} bubbles from pollen ✺`);
+    else if (cracked) labels.push('Dew shell cracked ❄');
+    else if (dropped >= 4) labels.push('Lovely chain drop! ↓');
+    else if (result.booster === 'bonk') labels.push('Bonk! ⬢');
+    else if (result.turn?.moved) labels.push('The breeze shifted →');
+    labels.slice(0, 2).forEach((label, index) => {
+      const message = this.add.text(195, 548 + index * 29, label, {
+        fontFamily: 'Trebuchet MS, sans-serif', fontSize: '15px', fontStyle: 'bold', color: '#fff8dd',
+        backgroundColor: '#275e52'
+      }).setPadding(9, 5).setOrigin(.5).setDepth(20);
+      this.effectLayer.add(message);
+      this.tweens.add({ targets: message, y: message.y - 35, alpha: 0, duration: 900, ease: 'Sine.Out', onComplete: () => message.destroy() });
     });
   }
   private animateCleared(result: FireResult): void {
@@ -434,6 +506,38 @@ function updateMuteButton(): void {
 
 let lastChapter = 0;
 const backToLevel = (): void => { overlay.classList.add('hidden'); };
+function showPause(): void {
+  const engine = scene.engine;
+  if (!engine || engine.won || engine.lost) return;
+  if (scene.deferUntilReady(showPause)) return;
+  scene.setInspectMode(false);
+  overlay.className = 'overlay result-overlay';
+  overlay.innerHTML = `<div class="result-card pause-card" role="dialog" aria-label="Paused game"><span class="eyebrow">A LITTLE BREATHER</span><h2>${escapeHtml(engine.level.name)}</h2><p>${engine.freedBees} of ${engine.totalBees} bee friends home · ${engine.shots} bubbles left</p><div class="pause-saved">✦ Your board and next bubbles are saved automatically.</div><button id="pause-continue" class="primary-button">Keep playing <span>➜</span></button><button id="pause-restart" class="secondary-button">Restart this level</button><div class="result-links"><button id="pause-rules" class="text-button">Rules</button><button id="pause-bag" class="text-button">Bag & shop ♥</button><button id="pause-sound" class="text-button">Sound ${save.muted ? 'off' : 'on'}</button></div><button id="pause-home" class="text-button">Return to the meadows</button></div>`;
+  overlay.querySelector<HTMLButtonElement>('#pause-continue')!.addEventListener('click', backToLevel);
+  overlay.querySelector<HTMLButtonElement>('#pause-restart')!.addEventListener('click', () => {
+    if (engine.turns > 0) showRestartConfirm();
+    else beginLevel(scene.getLevelIndex(), true);
+  });
+  overlay.querySelector<HTMLButtonElement>('#pause-rules')!.addEventListener('click', () => showRules(showPause));
+  overlay.querySelector<HTMLButtonElement>('#pause-bag')!.addEventListener('click', () => showBag(showPause));
+  overlay.querySelector<HTMLButtonElement>('#pause-sound')!.addEventListener('click', () => { save.muted = !save.muted; storeSave(save); updateMuteButton(); showPause(); });
+  overlay.querySelector<HTMLButtonElement>('#pause-home')!.addEventListener('click', showHome);
+}
+function showRestartConfirm(): void {
+  const index = scene.getLevelIndex();
+  overlay.className = 'overlay result-overlay';
+  overlay.innerHTML = `<div class="result-card confirm-card" role="dialog" aria-label="Restart this level"><span class="eyebrow">START FRESH?</span><h2>Restart this meadow?</h2><p>Your current board will start over. Power-ups already fired stay spent.</p><button id="restart-keep" class="primary-button">Keep my attempt <span>➜</span></button><button id="restart-confirm" class="text-button">Restart level ${index + 1}</button></div>`;
+  overlay.querySelector<HTMLButtonElement>('#restart-keep')!.addEventListener('click', showPause);
+  overlay.querySelector<HTMLButtonElement>('#restart-confirm')!.addEventListener('click', () => beginLevel(index, true));
+}
+function showSwitchLevelConfirm(index: number): void {
+  const chapter = lastChapter;
+  const paused = save.activeRun?.levelId;
+  overlay.className = 'overlay result-overlay';
+  overlay.innerHTML = `<div class="result-card confirm-card" role="dialog" aria-label="Change level"><span class="eyebrow">ONE MORE THING</span><h2>Leave level ${paused}?</h2><p>Your unfinished board will be replaced when you start level ${index + 1}.</p><button id="switch-keep" class="primary-button">Keep my saved level <span>➜</span></button><button id="switch-confirm" class="text-button">Start level ${index + 1}</button></div>`;
+  overlay.querySelector<HTMLButtonElement>('#switch-keep')!.addEventListener('click', () => showChapterSelect(chapter));
+  overlay.querySelector<HTMLButtonElement>('#switch-confirm')!.addEventListener('click', () => beginLevel(index, true));
+}
 const activeRules = (): RuleId[] => {
   const engine = scene.engine;
   if (!engine) return [];
@@ -445,7 +549,7 @@ const activeRules = (): RuleId[] => {
 };
 
 function showRules(returnTo: () => void, focus?: RuleId): void {
-  if (scene.isBusy()) { notice('One moment while that bubble lands.'); return; }
+  if (scene.deferUntilReady(() => showRules(returnTo, focus))) return;
   const current = activeRules();
   if (focus && current.includes(focus)) { current.splice(current.indexOf(focus), 1); current.unshift(focus); }
   const ordered = focus ? [ruleById[focus], ...rules.filter((rule) => rule.id !== focus)] : rules;
@@ -493,7 +597,7 @@ function showColorPicker(kind: 'rainbow' | 'wild', returnTo: () => void): void {
 }
 
 function showBag(returnTo: () => void): void {
-  if (scene.isBusy()) { notice('One moment while that bubble lands.'); return; }
+  if (scene.deferUntilReady(() => showBag(returnTo))) return;
   const engine = scene.engine;
   const playing = Boolean(engine && !engine.won && !engine.lost);
   const cards = boosters.map((booster) => {
@@ -518,10 +622,12 @@ function showBag(returnTo: () => void): void {
 }
 
 scene.onInspect = showInspectedRule;
-function beginLevel(index: number): void {
+function beginLevel(index: number, fresh = false): void {
+  const restored = !fresh && save.activeRun?.levelId === levels[index].id
+    ? restoreActiveRun(save.activeRun, levels, save.unlocked) ?? undefined : undefined;
   overlay.classList.add('hidden');
   hud.classList.remove('hidden');
-  scene.startLevel(index);
+  scene.startLevel(index, restored);
   const tutorial = levels[index].tutorial;
   if (tutorial && !save.tutorialsSeen.includes(String(index))) {
     showGuide('A NEW LITTLE TRICK', levels[index].name, tutorial, () => {
@@ -545,10 +651,14 @@ function showHome(): void {
   hud.classList.add('hidden');
   overlay.className = 'overlay';
   const complete = save.stars.slice(0, levels.length).filter(Boolean).length;
-  const next = firstUnfinished();
+  const restored = save.activeRun ? restoreActiveRun(save.activeRun, levels, save.unlocked) : null;
+  if (save.activeRun && !restored) { delete save.activeRun; storeSave(save); }
+  const pausedIndex = restored ? restored.engine.level.id - 1 : undefined;
+  const next = pausedIndex ?? firstUnfinished();
+  const progress = Math.round(complete / levels.length * 100);
   overlay.innerHTML = `<div class="home-header"><span class="eyebrow">A LITTLE ADVENTURE FOR YOU</span><h1>Bramble’s<br><em>Bubble Rescue</em></h1><p>Pop bubbles. Free little friends. Make someone smile.</p></div>
     <img class="hero-art" src="${BASE}bramble.svg" alt="Bramble the friendly honey badger" />
-    <div class="home-panel"><div class="dedication">${escapeHtml(gameContent.opening)}</div><button id="primary-play" class="primary-button">${complete === levels.length ? 'Play again' : `Continue · Level ${next + 1}`} <span>➜</span></button><button id="choose-level" class="secondary-button">Choose a level</button><div class="home-quick-actions"><button id="home-rules">Bubble rules</button><button id="home-bag">Bag & shop ♥</button></div><div class="journey-progress">${complete} of 30 meadows complete</div></div>
+    <div class="home-panel"><div class="dedication">${escapeHtml(gameContent.opening)}</div><button id="primary-play" class="primary-button">${pausedIndex !== undefined ? `Resume · Level ${next + 1}` : complete === levels.length ? 'Play again' : `Continue · Level ${next + 1}`} <span>➜</span></button>${pausedIndex !== undefined ? '<div class="paused-note">Your in-progress meadow is right where you left it.</div>' : ''}<button id="choose-level" class="secondary-button">Choose a level</button><div class="home-quick-actions"><button id="home-rules">Bubble rules</button><button id="home-bag">Bag & shop ♥</button></div><div class="journey-progress">${complete} of 30 meadows complete</div><div class="progress-track" role="progressbar" aria-valuenow="${complete}" aria-valuemin="0" aria-valuemax="30" aria-label="Meadows complete"><span style="width:${progress}%"></span></div></div>
     <div class="home-footer">A cosy little game · No timers, just bubbles</div>`;
   overlay.querySelector<HTMLButtonElement>('#primary-play')!.addEventListener('click', () => beginLevel(next));
   overlay.querySelector<HTMLButtonElement>('#choose-level')!.addEventListener('click', () => showChapterSelect(Math.floor(next / 10)));
@@ -566,12 +676,17 @@ function showChapterSelect(chapterIndex: number): void {
     const index = level.id - 1;
     const unlocked = index < save.unlocked;
     const stars = save.stars[index] || 0;
-    return `<button class="level-tile ${unlocked ? '' : 'locked'}" data-level="${index}" ${unlocked ? '' : 'disabled'} aria-label="Level ${level.id}: ${escapeHtml(level.name)}${unlocked ? '' : ', locked'}"><span>${level.id}</span><small>${unlocked ? stars ? '★'.repeat(stars) : 'Ready' : 'Locked'}</small></button>`;
+    const paused = save.activeRun?.levelId === level.id;
+    return `<button class="level-tile ${unlocked ? '' : 'locked'} ${paused ? 'paused' : ''}" data-level="${index}" ${unlocked ? '' : 'disabled'} aria-label="Level ${level.id}: ${escapeHtml(level.name)}${unlocked ? paused ? ', paused' : '' : ', locked'}"><span>${level.id}</span><small>${unlocked ? paused ? 'Paused' : stars ? '★'.repeat(stars) : 'Ready' : 'Locked'}</small></button>`;
   }).join('');
-  overlay.innerHTML = `<div class="chapter-heading"><button id="chapter-back" class="icon-button" aria-label="Back to home">‹</button><span class="eyebrow">BRAMBLE’S JOURNEY</span><h2>${escapeHtml(chapter.name)}</h2><p>${escapeHtml(chapter.subtitle)}</p></div><div class="chapter-panel"><div class="chapter-tabs">${tabs}</div><div class="chapter-grid">${tiles}</div><p>Finish a level to open the next meadow.</p><div class="chapter-quick-actions"><button id="chapter-rules">Rules</button><button id="chapter-bag">Bag & shop ♥</button></div></div>`;
+  overlay.innerHTML = `<div class="chapter-heading"><button id="chapter-back" class="icon-button" aria-label="Back to home">‹</button><span class="eyebrow">BRAMBLE’S JOURNEY</span><h2>${escapeHtml(chapter.name)}</h2><p>${escapeHtml(chapter.subtitle)}</p></div><div class="chapter-panel"><div class="chapter-tabs">${tabs}</div><div class="chapter-grid">${tiles}</div><p>${save.activeRun?.actions.length ? `Level ${save.activeRun.levelId} is paused. Starting another replaces its board.` : 'Finish a level to open the next meadow.'}</p><div class="chapter-quick-actions"><button id="chapter-rules">Rules</button><button id="chapter-bag">Bag & shop ♥</button></div></div>`;
   overlay.querySelector<HTMLButtonElement>('#chapter-back')!.addEventListener('click', showHome);
   overlay.querySelectorAll<HTMLButtonElement>('[data-chapter]').forEach((button) => button.addEventListener('click', () => showChapterSelect(Number(button.dataset.chapter))));
-  overlay.querySelectorAll<HTMLButtonElement>('[data-level]').forEach((button) => button.addEventListener('click', () => beginLevel(Number(button.dataset.level))));
+  overlay.querySelectorAll<HTMLButtonElement>('[data-level]').forEach((button) => button.addEventListener('click', () => {
+    const index = Number(button.dataset.level);
+    if (save.activeRun?.actions.length && save.activeRun.levelId !== index + 1) showSwitchLevelConfirm(index);
+    else beginLevel(index);
+  }));
   overlay.querySelector<HTMLButtonElement>('#chapter-rules')!.addEventListener('click', () => showRules(() => showChapterSelect(lastChapter)));
   overlay.querySelector<HTMLButtonElement>('#chapter-bag')!.addEventListener('click', () => showBag(() => showChapterSelect(lastChapter)));
 }
@@ -593,7 +708,7 @@ function showResult(won: boolean, index: number, stars: number, firstClear = fal
   overlay.querySelector<HTMLButtonElement>('#result-rules')!.addEventListener('click', () => showRules(() => showResult(won, index, stars, false)));
 }
 
-document.querySelector<HTMLButtonElement>('#home-button')!.addEventListener('click', showHome);
+document.querySelector<HTMLButtonElement>('#home-button')!.addEventListener('click', showPause);
 document.querySelector<HTMLButtonElement>('#swap-button')!.addEventListener('click', () => scene.swap());
 document.querySelector<HTMLButtonElement>('#rules-button')!.addEventListener('click', () => showRules(backToLevel));
 document.querySelector<HTMLButtonElement>('#bag-button')!.addEventListener('click', () => showBag(backToLevel));
