@@ -1,0 +1,25 @@
+{
+  "name": "brambles-bubble-rescue",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "art": "node scripts/make_art.mjs && python scripts/make_icons.py",
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc && vite build",
+    "build:pages": "tsc && vite build --mode pages",
+    "preview": "vite preview --host 0.0.0.0",
+    "preview:pages": "vite preview --host 0.0.0.0 --mode pages",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "phaser": "3.90.0"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.4",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.1",
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.0.0"
+  }
+}

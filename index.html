@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#183b3a" />
+    <meta name="description" content="Bramble's Bubble Rescue: a cosy bubble popping game." />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+    <title>Bramble's Bubble Rescue</title>
+  </head>
+  <body>
+    <main id="app" aria-label="Bramble's Bubble Rescue game">
+      <div id="game-shell">
+        <img class="scene-backdrop" src="%BASE_URL%scene.svg" alt="" />
+        <div id="game"></div>
+        <div id="hud" class="hidden" aria-live="polite">
+          <div class="hud-top">
+            <button id="home-button" class="icon-button" aria-label="Return to level menu" title="Level menu">⌂</button>
+            <div class="level-label"><small>LEVEL <span id="level-number">01</span></small><strong id="level-name">Hedgerow Hello</strong></div>
+            <button id="mute-button" class="icon-button" aria-label="Mute sound" title="Toggle sound">♫</button>
+          </div>
+          <div class="hud-stats">
+            <div class="stat"><span class="stat-icon">✿</span><span><strong id="bees-count">0/0</strong><small>friends freed</small></span></div>
+            <div class="stat"><span class="stat-icon">◉</span><span><strong id="shots-count">0</strong><small>bubbles left</small></span></div>
+          </div>
+          <div class="game-bottom">
+            <p>Drag to aim · release to pop</p>
+            <button id="swap-button" class="pill-button" aria-label="Swap current and next bubble">↔ Swap bubble</button>
+          </div>
+        </div>
+        <div id="overlay" class="overlay"></div>
+      </div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
