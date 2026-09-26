@@ -23,9 +23,14 @@
             <div class="stat"><span class="stat-icon">✿</span><span><strong id="bees-count">0/0</strong><small>friends freed</small></span></div>
             <div class="stat"><span class="stat-icon">◉</span><span><strong id="shots-count">0</strong><small>bubbles left</small></span></div>
           </div>
+          <div id="mechanic-status" class="mechanic-status hidden"></div>
           <div class="game-bottom">
             <p>Drag to aim · release to pop</p>
-            <button id="swap-button" class="pill-button" aria-label="Swap current and next bubble">↔ Swap bubble</button>
+            <div class="game-actions">
+              <button id="help-button" class="pill-button small" aria-label="Show level hint">? Hint</button>
+              <button id="wild-button" class="pill-button small hidden" aria-label="Choose a free wild-color shot">✦ Wild</button>
+              <button id="swap-button" class="pill-button" aria-label="Swap current and next bubble">↔ Swap</button>
+            </div>
           </div>
         </div>
         <div id="overlay" class="overlay"></div>
