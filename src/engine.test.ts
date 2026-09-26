@@ -21,4 +21,38 @@ describe('repeatable shots', () => {
     expect(engine.wildUsed).toBe(true);
     expect(engine.chooseWild('G')).toBe(false);
   });
+
+  it('uses Rainbow color without replacing the queued regular bubbles', () => {
+    const level = { ...levels[0], rows: ['...gg....', '........'], specials: [], shots: 5 };
+    const engine = new GameEngine(level);
+    engine.currentColor = 'R';
+    engine.nextColor = 'R';
+    expect(engine.armBooster('rainbow', 'G')).toBe(true);
+    expect(engine.shotColor()).toBe('G');
+    const result = engine.fire(0);
+    expect(result.booster).toBe('rainbow');
+    expect(result.color).toBe('G');
+    expect(result.won).toBe(true);
+    expect(engine.shots).toBe(4);
+  });
+
+  it('consumes a regular shot when Bonk directly frees a bee', () => {
+    const level = { ...levels[0], rows: ['....r....', '........'], specials: [], shots: 5 };
+    const engine = new GameEngine(level);
+    expect(engine.armBooster('bonk')).toBe(true);
+    const result = engine.fire(0);
+    expect(result.booster).toBe('bonk');
+    expect(result.settled?.placed).toBeNull();
+    expect(result.settled?.beesFreed).toBe(1);
+    expect(engine.shots).toBe(4);
+    expect(engine.armedBooster).toBeUndefined();
+  });
+
+  it('can cancel an armed booster before firing', () => {
+    const engine = new GameEngine(levels[7]);
+    expect(engine.armBooster('double')).toBe(true);
+    engine.cancelSpecialShot();
+    expect(engine.armedBooster).toBeUndefined();
+    expect(engine.turns).toBe(0);
+  });
 });

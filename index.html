@@ -27,12 +27,15 @@
           <div class="game-bottom">
             <p>Drag to aim · release to pop</p>
             <div class="game-actions">
+              <button id="rules-button" class="pill-button small" aria-label="Open bubble rules">ⓘ Rules</button>
               <button id="help-button" class="pill-button small" aria-label="Show level hint">? Hint</button>
-              <button id="wild-button" class="pill-button small hidden" aria-label="Choose a free wild-color shot">✦ Wild</button>
+              <button id="bag-button" class="pill-button small" aria-label="Open power-up bag">✦ Bag</button>
               <button id="swap-button" class="pill-button" aria-label="Swap current and next bubble">↔ Swap</button>
             </div>
           </div>
         </div>
+        <div id="inspect-bar" class="inspect-bar hidden"><span>INSPECT · Tap any bubble</span><button id="inspect-done" aria-label="Stop inspecting">Done</button></div>
+        <div id="toast" class="toast hidden" role="status"></div>
         <div id="overlay" class="overlay"></div>
       </div>
     </main>

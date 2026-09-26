@@ -5,36 +5,36 @@ import { levels } from './levels';
 // Human-repeatable winning shots through the same collision path used in game.
 // An `s` after an angle means swap before firing. No wild shots are used.
 const replays = [
-  '-1.25s -1.15',
-  '-0.85s -1.05s',
-  '-0.85s -1.05',
-  '-1.25 -1.25 -0.85 -0.75s -1.15s -1.25',
-  '-1.25 -1.25 -1.15s -1.25 -1.25',
-  '-1.25 -1.25 -1.25 -1.15s -1.15s -1.25',
-  '-0.85 -1.25 -1.25',
-  '-1.25s -1.25 -1.15s -1.25',
-  '-1.25s -0.85s -1.25 -1.25s -1.25',
-  '-0.35 -0.85 -1.25 -0.85s',
-  '-0.85 -1.05 -1.05',
-  '-1.05s -1.15 -0.85s -1.05',
-  '-1.05s -0.85s -1.05',
-  '-1.05s -1.05s -0.85s',
-  '-0.85s -1.05 -1.25 -1.05',
-  '-0.85s -0.35s -1.15 -1.05',
-  '-0.85 -1.15 -1.25s -1.05s -1.05s',
-  '-0.85 -0.85 -1.25 0.45 -1.25 -1.25 -1.15s -1.25',
-  '-1.15s -1.25 -0.95 -1.25s -1.15s -1.25s -1.25',
-  '-1.15s -0.45 -1.15 -0.85 -1.25',
-  '-1.15 -0.85s -1.25 -1.25 -1.25',
-  '-1.25s -1.05 -0.85s -1.05',
-  '-0.85 -0.35s -0.85s',
-  '-0.35 -1.25s -0.85s -1.05s',
-  '-0.35s 0.85s -0.85',
-  '-0.85s -1.25 -1.05s -1.05',
-  '-0.35s 0.15 -1.25s',
-  '-0.35s -0.85s -1.25 -1.05',
-  '-0.85 -0.35 -1.25 -1.05',
-  '-0.35s -0.85s -1.25 -1.05'
+  '-1.2 -1.1',
+  '-1.2s -1.1s',
+  '-1.2s -1.1 -1.2s',
+  '-1.2 -1.2 -1.2 -0.7s -1.1s -1.1',
+  '-1.2s -1.2 -1.2s -1.2 -1.2',
+  '-1.2s -1.1s -1 -0.9s -0.9s -0.9',
+  '-1.2 -1.2 -1.2',
+  '-1.1s -1.1 -1.2s -1.2',
+  '-1.1 -1.2s -1.2 -1.1s -1.2',
+  '-0.4 0.4 -1.2 -1.2s',
+  '-1.2 -1.1 -0.8',
+  '-1.1s -1.1 -1.2s -1',
+  '-1.1s -1.2s -0.8',
+  '-1.1s -0.4s -1.2s',
+  '-1.2s -1.1 -1.2 -1.2',
+  '-1.2s -0.4s -1.1 -1.1',
+  '0.4s -0.4 -1.2s -1.2s',
+  '-0.5s -1.1s 0.3 -0.9 -1.2 -1.2s -1',
+  '-1.1s -1 -1 -1s -1.2s -1.1s -1.1',
+  '-0.4 0.4s -1.1 -1.2 -1',
+  '-1.2 0.3s -1.2 -1.2 -1.2',
+  '-0.4 -1.1 0.4s -0.5 -0.4s',
+  '-1.1 -1.2s -1.1 -1.2',
+  '-0.4 -1.1 0.3s -0.4s',
+  '-0.4s -0.4s 0.3',
+  '0.3s -1.1s -1.1 -0.8 -1.1',
+  '-0.4s -0.9 -1.2s',
+  '-1.1 0.3 -1.2 -1.1s -1.2',
+  '0.3 -1.2s -1.1 -1',
+  '-0.4s 0.9s -1.2 -0.4s -1.2s'
 ];
 
 describe('authored level replays', () => {
@@ -59,12 +59,11 @@ describe('authored level replays', () => {
       expect(game.won).toBe(true);
       expect(game.wildUsed).toBe(false);
       expect(game.shots).toBeGreaterThanOrEqual(0);
-      if (index === 8) expect(effects.pollen).toBeGreaterThan(0);
-      if (index === 10) expect(effects.honeycomb).toBeGreaterThan(0);
-      if (index === 14) expect(effects.dew).toBeGreaterThan(0);
-      if (index === 20) expect(effects.wind).toBeGreaterThan(0);
-      if (index === 24) expect(effects.bloom).toBeGreaterThan(0);
-      if (index === 29) expect([effects.pollen, effects.honeycomb, effects.wind, effects.bloom].every(Boolean)).toBe(true);
+      if (index === 3) expect(effects.pollen).toBeGreaterThan(0);
+      if (index === 7) expect(effects.honeycomb).toBeGreaterThan(0);
+      if (index === 10) expect(effects.dew).toBeGreaterThan(0);
+      if (index === 15) expect(effects.wind).toBeGreaterThan(0);
+      if (index === 18) expect(effects.bloom).toBeGreaterThan(0);
     });
   }
 });

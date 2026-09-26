@@ -3,15 +3,18 @@ import { BubbleBoard } from './board';
 import { levels } from './levels';
 
 describe('gift levels', () => {
-  it('preserves the published six layouts and shot counts', () => {
-    expect(levels.slice(0, 6).map(({ rows, shots }) => ({ rows, shots }))).toEqual([
-      { rows: ['RRRYYYGGG', 'rrYYgg..', 'RRRYYYGGG'], shots: 25 },
-      { rows: ['OOOGGGBBB', 'ooGGbbYY', 'OOOGGGBBB', '..YYGG..'], shots: 27 },
-      { rows: ['RRRPPPGGG', 'rrPPggYY', 'RRRPPPGGG', '..YYY...'], shots: 29 },
-      { rows: ['BBBOOOPPP', 'bbOOppYY', 'BBBOOOPPP', '.YYGGGG.', '.YYYGGG..'], shots: 32 },
-      { rows: ['YYYRRRGGG', 'yyRRggPP', 'YYYRRRGGG', '..PPPBBB', '...PPBBBB'], shots: 34 },
-      { rows: ['RRROOOGGG', 'rrOOggBB', 'RRROOOGGG', 'PPPPYYYY', 'PPPBBYYYY', '..PBBY..'], shots: 38 }
-    ]);
+  it('introduces new tricks across the first six levels', () => {
+    expect(levels.slice(0, 6).map(({ shots }) => shots)).toEqual([25, 19, 17, 18, 18, 20]);
+    expect(levels.slice(0, 6).every(({ tutorial }) => Boolean(tutorial))).toBe(true);
+    expect(levels[3].specials.some(({ kind }) => kind === 'pollen')).toBe(true);
+    expect(levels[2].rows.join('')).toContain('y');
+  });
+
+  it('makes the later chapters tighter and gives them deeper bee targets', () => {
+    expect(levels.slice(15).every(({ shots, par }) => shots - par <= 4)).toBe(true);
+    expect(levels.slice(20).every(({ rows }) => rows.length >= 7)).toBe(true);
+    expect(levels[15].wind).toBeDefined();
+    expect(levels[18].specials.some(({ kind }) => kind === 'bloom')).toBe(true);
   });
 
   it('all 30 levels load with bee targets and valid specials', () => {

@@ -1,6 +1,6 @@
 import { BubbleBoard, GRID_LEFT, GRID_TOP, type Cell } from './board';
 
-export interface ShotTrace { angle: number; path: { x: number; y: number }[]; placement: Cell | null }
+export interface ShotTrace { angle: number; path: { x: number; y: number }[]; placement: Cell | null; impact: Cell | null }
 
 // One collision implementation is shared by the visible projectile and replay checks.
 export function traceShot(board: BubbleBoard, requestedAngle: number): ShotTrace {
@@ -20,8 +20,8 @@ export function traceShot(board: BubbleBoard, requestedAngle: number): ShotTrace
     path.push({ x, y });
     const impact = board.nearestOccupied(x, y);
     if (y <= GRID_TOP || impact) {
-      return { angle, path, placement: board.placementFor(x, y, impact) };
+      return { angle, path, placement: board.placementFor(x, y, impact), impact: impact ? { row: impact.row, col: impact.col } : null };
     }
   }
-  return { angle, path, placement: null };
+  return { angle, path, placement: null, impact: null };
 }

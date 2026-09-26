@@ -15,7 +15,7 @@ export interface Bubble {
 }
 export interface OccupiedCell extends Cell { bubble: Bubble }
 export interface SettleResult {
-  placed: Cell;
+  placed: Cell | null;
   popped: OccupiedCell[];
   dropped: OccupiedCell[];
   cracked: Cell[];
@@ -138,13 +138,13 @@ export class BubbleBoard {
     return candidates[0];
   }
 
-  settle(cell: Cell, bubble: Bubble): SettleResult {
+  settle(cell: Cell, bubble: Bubble, minimumGroup = 3): SettleResult {
     if (this.get(cell)) throw new Error('Cell already occupied');
     this.cells.set(key(cell), bubble);
     const group = this.connected(cell, (other) => other.color === bubble.color);
     const popped: OccupiedCell[] = [];
     const cracked: Cell[] = [];
-    if (group.length >= 3) {
+    if (group.length >= minimumGroup) {
       for (const member of group) {
         const tile = this.get(member)!;
         if (tile.kind === 'dew') {
@@ -169,6 +169,20 @@ export class BubbleBoard {
     const cleared = [...popped, ...dropped];
     return {
       placed: cell, popped, dropped, cracked,
+      beesFreed: cleared.filter(({ bubble: tile }) => tile.bee).length,
+      bonusShots: cleared.filter(({ bubble: tile }) => tile.kind === 'pollen').length * 2
+    };
+  }
+
+  bonk(cell: Cell): SettleResult {
+    const bubble = this.get(cell);
+    if (!bubble) throw new Error('Bonk needs a tile');
+    this.cells.delete(key(cell));
+    const popped = [{ ...cell, bubble }];
+    const dropped = this.dropUnanchored();
+    const cleared = [...popped, ...dropped];
+    return {
+      placed: null, popped, dropped, cracked: [],
       beesFreed: cleared.filter(({ bubble: tile }) => tile.bee).length,
       bonusShots: cleared.filter(({ bubble: tile }) => tile.kind === 'pollen').length * 2
     };

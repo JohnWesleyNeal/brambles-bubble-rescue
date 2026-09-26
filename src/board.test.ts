@@ -62,4 +62,20 @@ describe('BubbleBoard', () => {
     expect(board.windPosition()).toBe(1);
     expect(board.get({ row: 1, col: 4 })?.color).toBe('R');
   });
+
+  it('lets Double Pop clear a two-bubble group', () => {
+    const board = new BubbleBoard(['....r....', '........']);
+    const result = board.settle({ row: 1, col: 3 }, { color: 'R', bee: false, kind: 'normal' }, 2);
+    expect(result.beesFreed).toBe(1);
+    expect(board.beeCount()).toBe(0);
+  });
+
+  it('lets Bonk remove a dew bee directly and drop its cargo', () => {
+    const board = new BubbleBoard(['....r....', '...G....'], [{ row: 0, col: 4, kind: 'dew' }]);
+    const result = board.bonk({ row: 0, col: 4 });
+    expect(result.placed).toBeNull();
+    expect(result.beesFreed).toBe(1);
+    expect(result.popped[0].bubble.kind).toBe('dew');
+    expect(result.dropped).toHaveLength(1);
+  });
 });
