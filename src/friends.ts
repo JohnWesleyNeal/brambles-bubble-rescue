@@ -1,10 +1,10 @@
 import type { JourneyData } from './progress';
 
 export const friends = [
-  { name: 'Mabel', title: 'Keeper of the spare picnic', clears: 5, hat: '✿', description: 'Always takes the scenic route. Carries an emergency sandwich for emergencies involving sandwiches.' },
-  { name: 'Sir Buzzby', title: 'Head of extremely small security', clears: 10, hat: '♛', description: 'Checks every flower for suspicious pollen. Has never arrested anyone. Very proud of this.' },
-  { name: 'Clover', title: 'Assistant to the afternoon nap', clears: 20, hat: '☾', description: 'Keeps the garden peaceful by demonstrating how. Please leave all urgent business under the daisy.' },
-  { name: 'Pip', title: 'Hat enthusiast, bee second', clears: 30, hat: '★', description: 'Organised the reunion. Brought thirty invitations and thirty-one hats. Just in case.' }
+  { name: 'Mabel', title: 'Keeper of the spare picnic', clears: 5, hat: '✿', description: 'Keeps a spare sandwich for emergencies. Nobody knows why the picnic needs so many emergency sandwiches, least of all Mabel.' },
+  { name: 'Sir Buzzby', title: 'Head of extremely small security', clears: 10, hat: '♛', description: 'Patrols in a thimble-sized helmet. Last week he arrested a suspicious pollen speck, then let it go for lack of evidence.' },
+  { name: 'Clover', title: 'Assistant to the afternoon nap', clears: 20, hat: '☾', description: 'Can nap through a thunderstorm, a parade, and the kettle boiling. Her official advice is to try all three at once.' },
+  { name: 'Pip', title: 'Hat enthusiast, bee second', clears: 30, hat: '★', description: 'Brought thirty invitations and thirty-one hats. He will not say who the spare hat is for.' }
 ];
 
 export const gardenStyles = [
@@ -15,7 +15,9 @@ export const gardenStyles = [
 
 export function friendsCards(stars: number[]): string {
   const clears = stars.filter(Boolean).length;
-  return `<div class="friend-list">${friends.map((friend) => `<article class="friend-card ${clears < friend.clears ? 'friend-locked' : ''}"><div class="friend-portrait" aria-hidden="true"><span>${clears >= friend.clears ? friend.hat : '?'}</span><img src="${import.meta.env.BASE_URL}bee.svg" alt=""></div><div><strong>${friend.name}</strong><small>${clears >= friend.clears ? friend.title : `Arrives after ${friend.clears} meadow clears`}</small><p>${clears >= friend.clears ? friend.description : 'A little friend to look forward to. No hurry.'}</p></div></article>`).join('')}</div>`;
+  const unlocked = friends.filter((friend) => clears >= friend.clears);
+  if (!unlocked.length) return '';
+  return `<div class="friend-list">${unlocked.map((friend) => `<article class="friend-card"><div class="friend-portrait" aria-hidden="true"><span>${friend.hat}</span><img src="${import.meta.env.BASE_URL}bee.svg" alt=""></div><div><strong>${friend.name}</strong><small>${friend.title}</small><p>${friend.description}</p></div></article>`).join('')}</div>`;
 }
 
 export function styleChoices(save: JourneyData): string {

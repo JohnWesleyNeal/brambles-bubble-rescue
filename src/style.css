@@ -454,8 +454,6 @@ button:disabled { cursor: default; }
 .friend-card p { font-size: 12px; line-height: 1.6; margin: 0; }
 .friend-portrait { position: relative; flex: 0 0 46px; font-size: 34px; align-self: center; animation: garden-flight 5s ease-in-out infinite; }
 .friend-portrait span { position: absolute; top: -17px; left: 13px; font-size: 22px; color: #a07489; }
-.friend-locked { opacity: .6; }
-.friend-locked .friend-portrait { animation: none; }
 .mastery-keepsakes { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
 .mastery-keepsakes span { background: #e8edd7; color: #567254; border-radius: 12px; padding: 6px 9px; font-size: 10px; }
 .friend-arrival { padding: 12px; border-radius: 15px; background: #f2e5c8; }
