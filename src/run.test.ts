@@ -5,7 +5,7 @@ import { restoreActiveRun, type ActiveRun } from './run';
 
 describe('paused level', () => {
   it('rebuilds the exact board, queue, shots, and armed booster from saved actions', () => {
-    const original = new GameEngine(levels[7]);
+    const original = new GameEngine(levels[7], 1);
     original.swap();
     original.armBooster('double');
     original.fire(-1.1);

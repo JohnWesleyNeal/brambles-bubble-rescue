@@ -23,7 +23,7 @@ describe('gift levels', () => {
       let board: BubbleBoard;
       try { board = new BubbleBoard(level.rows, level.specials); }
       catch (error) { throw new Error(`Level ${level.id}: ${String(error)}`); }
-      expect(board.beeCount()).toBeGreaterThan(0);
+      expect(board.beeCount() + (level.flightPath ? 1 : 0)).toBeGreaterThan(0);
       expect(level.shots).toBeGreaterThan(level.par);
       expect(board.availableColors().every((color) => level.colors.includes(color))).toBe(true);
       if (level.wind) {

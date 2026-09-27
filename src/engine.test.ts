@@ -22,9 +22,9 @@ describe('repeatable shots', () => {
     expect(engine.chooseWild('G')).toBe(false);
   });
 
-  it('uses Rainbow color without replacing the queued regular bubbles', () => {
+  it('preserves the original chosen-color Rainbow under legacy rules', () => {
     const level = { ...levels[0], rows: ['...gg....', '........'], specials: [], shots: 5 };
-    const engine = new GameEngine(level);
+    const engine = new GameEngine(level, 1);
     engine.currentColor = 'R';
     engine.nextColor = 'R';
     expect(engine.armBooster('rainbow', 'G')).toBe(true);

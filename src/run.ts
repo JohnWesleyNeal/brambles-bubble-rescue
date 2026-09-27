@@ -1,16 +1,18 @@
 import type { BubbleColor } from './board';
 import type { BoosterId } from './boosters';
 import { GameEngine } from './engine';
-import type { LevelDefinition } from './levels';
+import { legacyLevels, type LevelDefinition } from './levels';
 
 export type RunAction =
   | { type: 'swap' }
   | { type: 'wild'; color: BubbleColor }
   | { type: 'booster'; id: BoosterId; color?: BubbleColor }
   | { type: 'cancel' }
+  | { type: 'topup' }
+  | { type: 'bloom' }
   | { type: 'fire'; angle: number };
 
-export interface ActiveRun { version: 1; levelId: number; actions: RunAction[] }
+export interface ActiveRun { version: 1 | 2 | 3; levelId: number; actions: RunAction[] }
 export interface RestoredRun { engine: GameEngine; actions: RunAction[] }
 
 const colors = new Set(['R', 'O', 'Y', 'G', 'B', 'P']);
@@ -21,10 +23,12 @@ const boosters = new Set(['rainbow', 'double', 'bonk']);
 export function restoreActiveRun(value: unknown, levels: LevelDefinition[], unlocked: number): RestoredRun | null {
   if (!value || typeof value !== 'object') return null;
   const run = value as Record<string, unknown>;
-  if (run.version !== 1 || !Number.isInteger(run.levelId) || Number(run.levelId) < 1 || Number(run.levelId) > unlocked || !Array.isArray(run.actions) || run.actions.length > 250) return null;
-  const level = levels[Number(run.levelId) - 1];
+  if ((run.version !== 1 && run.version !== 2 && run.version !== 3) || !Number.isInteger(run.levelId) || Number(run.levelId) < 1 || Number(run.levelId) > unlocked || !Array.isArray(run.actions) || run.actions.length > 100000) return null;
+  let level = (run.version < 3 ? legacyLevels : levels)[Number(run.levelId) - 1];
   if (!level || level.id !== run.levelId) return null;
-  const engine = new GameEngine(level);
+  // The v2 Rainbow already used a burst; its old color-picker lesson was stale.
+  if (run.version === 2 && run.levelId === 2) level = { ...level, hint: levels[1].hint, tutorial: levels[1].tutorial };
+  const engine = new GameEngine(level, run.version);
   const actions: RunAction[] = [];
   try {
     for (const raw of run.actions) {
@@ -38,9 +42,15 @@ export function restoreActiveRun(value: unknown, levels: LevelDefinition[], unlo
       } else if (action.type === 'booster' && boosters.has(String(action.id))) {
         const id = action.id as BoosterId;
         const color = action.color as BubbleColor | undefined;
-        if (id === 'rainbow' ? !colors.has(String(color)) : color !== undefined) return null;
+        if (id === 'rainbow' && run.version === 1 ? !colors.has(String(color)) : color !== undefined) return null;
         if (!engine.armBooster(id, color)) return null;
         actions.push({ type: 'booster', id, ...(color ? { color } : {}) });
+      } else if (action.type === 'bloom' && run.version === 3) {
+        if (!engine.armBloom()) return null;
+        actions.push({ type: 'bloom' });
+      } else if (action.type === 'topup' && run.version >= 2) {
+        if (!engine.topUp()) return null;
+        actions.push({ type: 'topup' });
       } else if (action.type === 'cancel') {
         engine.cancelSpecialShot();
         actions.push({ type: 'cancel' });

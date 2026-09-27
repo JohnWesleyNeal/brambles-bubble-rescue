@@ -28,6 +28,7 @@ export interface TurnResult {
   dropped: OccupiedCell[];
   beesFreed: number;
   bonusShots: number;
+  moves: { from: Cell; to: Cell }[];
 }
 
 export const GRID_LEFT = 51;
@@ -142,9 +143,24 @@ export class BubbleBoard {
     if (this.get(cell)) throw new Error('Cell already occupied');
     this.cells.set(key(cell), bubble);
     const group = this.connected(cell, (other) => other.color === bubble.color);
+    return this.clearGroup(group.length >= minimumGroup ? group : [], cell);
+  }
+
+  rainbowGroup(cell: Cell): Cell[] {
+    const color = this.get(cell)?.color;
+    return color ? this.connected(cell, (bubble) => bubble.color === color) : [];
+  }
+
+  rainbow(cell: Cell): SettleResult {
+    const group = this.rainbowGroup(cell);
+    if (!group.length) throw new Error('Rainbow needs a colored target');
+    return this.clearGroup(group, null);
+  }
+
+  private clearGroup(group: Cell[], placed: Cell | null): SettleResult {
     const popped: OccupiedCell[] = [];
     const cracked: Cell[] = [];
-    if (group.length >= minimumGroup) {
+    if (group.length) {
       for (const member of group) {
         const tile = this.get(member)!;
         if (tile.kind === 'dew') {
@@ -168,7 +184,7 @@ export class BubbleBoard {
     const dropped = popped.length ? this.dropUnanchored() : [];
     const cleared = [...popped, ...dropped];
     return {
-      placed: cell, popped, dropped, cracked,
+      placed, popped, dropped, cracked,
       beesFreed: cleared.filter(({ bubble: tile }) => tile.bee).length,
       bonusShots: cleared.filter(({ bubble: tile }) => tile.kind === 'pollen').length * 2
     };
@@ -188,8 +204,18 @@ export class BubbleBoard {
     };
   }
 
+  bloomGroup(cell: Cell): Cell[] {
+    if (!this.get(cell)?.color) return [];
+    return [cell, ...neighborCells(cell)].filter((candidate) => Boolean(this.get(candidate)?.color));
+  }
+
+  bloomBurst(cell: Cell): SettleResult {
+    return this.clearGroup(this.bloomGroup(cell), null);
+  }
+
   advanceTurn(turn: number, wind?: WindStrip): TurnResult {
     const changed: Cell[] = [];
+    const moves: TurnResult['moves'] = [];
     for (const cell of this.entries()) {
       const tile = cell.bubble;
       if (tile.kind === 'bloom' && tile.alternate && tile.color) {
@@ -210,7 +236,11 @@ export class BubbleBoard {
         }
         if (cargo.length) {
           for (const cell of cargo) this.cells.delete(key(cell));
-          for (const cell of cargo) this.cells.set(key({ row: cell.row, col: cell.col + direction }), cell.bubble);
+          for (const cell of cargo) {
+            const to = { row: cell.row, col: cell.col + direction };
+            this.cells.set(key(to), cell.bubble);
+            moves.push({ from: { row: cell.row, col: cell.col }, to });
+          }
           this.windOffset = 1 - this.windOffset;
           moved = true;
         }
@@ -218,7 +248,7 @@ export class BubbleBoard {
     }
     const dropped = moved ? this.dropUnanchored() : [];
     return {
-      moved, changed, dropped,
+      moved, changed, dropped, moves,
       beesFreed: dropped.filter(({ bubble }) => bubble.bee).length,
       bonusShots: dropped.filter(({ bubble }) => bubble.kind === 'pollen').length * 2
     };

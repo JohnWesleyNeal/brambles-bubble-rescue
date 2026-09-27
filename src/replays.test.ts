@@ -1,48 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { GameEngine } from './engine';
-import { levels } from './levels';
+import { legacyLevels as levels } from './levels';
 
 // Human-repeatable winning shots through the same collision path used in game.
 // An `s` after an angle means swap before firing. No wild shots are used.
-const replays = [
-  '-1.2 -1.1',
-  '-1.2s -1.1s',
-  '-1.2s -1.1 -1.2s',
-  '-1.2 -1.2 -1.2 -0.7s -1.1s -1.1',
-  '-1.2s -1.2 -1.2s -1.2 -1.2',
-  '-1.2s -1.1s -1 -0.9s -0.9s -0.9',
-  '-1.2 -1.2 -1.2',
-  '-1.1s -1.1 -1.2s -1.2',
-  '-1.1 -1.2s -1.2 -1.1s -1.2',
-  '-0.4 0.4 -1.2 -1.2s',
-  '-1.2 -1.1 -0.8',
-  '-1.1s -1.1 -1.2s -1',
-  '-1.1s -1.2s -0.8',
-  '-1.1s -0.4s -1.2s',
-  '-1.2s -1.1 -1.2 -1.2',
-  '-1.2s -0.4s -1.1 -1.1',
-  '0.4s -0.4 -1.2s -1.2s',
-  '-0.5s -1.1s 0.3 -0.9 -1.2 -1.2s -1',
-  '-1.1s -1 -1 -1s -1.2s -1.1s -1.1',
-  '-0.4 0.4s -1.1 -1.2 -1',
-  '-1.2 0.3s -1.2 -1.2 -1.2',
-  '-0.4 -1.1 0.4s -0.5 -0.4s',
-  '-1.1 -1.2s -1.1 -1.2',
-  '-0.4 -1.1 0.3s -0.4s',
-  '-0.4s -0.4s 0.3',
-  '0.3s -1.1s -1.1 -0.8 -1.1',
-  '-0.4s -0.9 -1.2s',
-  '-1.1 0.3 -1.2 -1.1s -1.2',
-  '0.3 -1.2s -1.1 -1',
-  '-0.4s 0.9s -1.2 -0.4s -1.2s'
-];
+import { replays } from './replay-fixtures';
 
 describe('authored level replays', () => {
   it('covers exactly 30 levels', () => expect(replays).toHaveLength(levels.length));
 
   for (const [index, replay] of replays.entries()) {
     it(`clears level ${index + 1} with its regular shot budget`, () => {
-      const game = new GameEngine(levels[index]);
+      const game = new GameEngine(levels[index], 2);
       const effects = { pollen: 0, honeycomb: 0, dew: 0, wind: 0, bloom: 0 };
       for (const move of replay.split(' ')) {
         if (move.endsWith('s')) game.swap();

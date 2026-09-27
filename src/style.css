@@ -428,3 +428,113 @@ button:disabled { cursor: default; }
   .home-header { top: 4%; }
   .chapter-panel { bottom: 5%; }
 }
+/* Woodland makeover */
+#quick-boosters { position: absolute; left: 59%; right: 3%; top: 79%; display: flex; justify-content: space-between; pointer-events: none; }
+#bloom-shot { position: absolute; left: 4%; top: 79%; width: 108px; min-height: 46px; border-radius: 24px; border: 2px solid #fff3d2; background: linear-gradient(90deg,#efd2dc var(--bloom-fill),#fff8e6 var(--bloom-fill)); color: #78516a; display: flex; align-items: center; justify-content: center; gap: 5px; box-shadow: 0 3px 0 #b9ac9b; }
+#bloom-shot[hidden] { display: none; }
+#bloom-shot span { font-size: 26px; }
+#bloom-shot strong { font-size: 11px; }
+#bloom-shot:disabled { opacity: .8; }
+#bloom-shot.ready { border-color: #956782; }
+#bloom-shot[aria-pressed="true"] { outline: 3px solid #fff2cd; background: #eab7d0; }
+.emporium-proprietor { display: flex; align-items: center; gap: 10px; background: #f1ead6; padding: 12px; border-radius: 18px; margin-bottom: 14px; }
+.emporium-proprietor img { width: 68px; height: 74px; }
+.emporium-proprietor p { font: italic 15px Georgia,serif; color: #5b684e; }
+.emporium-proprietor small { display: block; font: 11px/1.5 'Trebuchet MS',sans-serif; margin-top: 8px; }
+.garden-styles { display: flex; gap: 6px; margin: 12px 0 20px; }
+.garden-styles button { flex: 1; padding: 10px 5px; min-height: 62px; font-size: 11px; border: 2px solid #c3c8aa; border-radius: 13px; background: #fff6de; color: #47624e; }
+.garden-styles button[data-garden-style="rose"] { background: #f3d8dc; }
+.garden-styles button[data-garden-style="twilight"] { background: #ddd8ee; }
+.garden-styles button[aria-pressed="true"] { border-color: #466f54; box-shadow: 0 2px 0 #466f54; }
+.garden-styles button:disabled { opacity: .55; }
+.garden-styles small { display: block; margin-top: 6px; font-size: 9px; }
+.friend-card { display: flex; text-align: left; gap: 12px; padding: 14px 12px; margin: 10px 0; background: #fff8e4; border: 1px solid #d7d4b6; border-radius: 18px; }
+.friend-card strong { font: bold 19px Georgia,serif; color: #46634d; }
+.friend-card small { display: block; font-size: 10px; color: #8c7451; margin: 5px 0; }
+.friend-card p { font-size: 12px; line-height: 1.6; margin: 0; }
+.friend-portrait { position: relative; flex: 0 0 46px; font-size: 34px; align-self: center; animation: garden-flight 5s ease-in-out infinite; }
+.friend-portrait span { position: absolute; top: -17px; left: 13px; font-size: 22px; color: #a07489; }
+.friend-locked { opacity: .6; }
+.friend-locked .friend-portrait { animation: none; }
+.mastery-keepsakes { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
+.mastery-keepsakes span { background: #e8edd7; color: #567254; border-radius: 12px; padding: 6px 9px; font-size: 10px; }
+.friend-arrival { padding: 12px; border-radius: 15px; background: #f2e5c8; }
+.quick-booster { position: relative; display: flex; align-items: center; justify-content: center; gap: 5px; min-width: 43px; min-height: 44px; padding: 4px; flex-direction: column; gap: 0; border: 2px solid #fff3d2; border-radius: 22px; background: #fff8e6; box-shadow: 0 3px 0 #a7b88c; color: #46674e; }
+.quick-booster span { font-size: 23px; }
+.quick-booster small { font-size: 10px; font-weight: 900; }
+.quick-booster.rainbow { background: linear-gradient(120deg,#f5c1b2,#fae8a5,#c6e4c0,#c8dbf0,#dcc4e4); }
+.quick-booster.double { background: #dcefd6; }
+.quick-booster.bonk { background: #f3d8ad; }
+.quick-booster.equipped { border-color: #2b755e; box-shadow: 0 0 0 3px #fff8dc, 0 4px 0 #36765b; }
+.quick-booster:disabled { opacity: .55; }
+#hive-target { background: #f2d38e; border-radius: 12px 12px 6px 6px; padding: 0 3px; }
+#hud .hud-stats { position: relative; }
+.gifts-sheet { max-height: 85%; }
+.booster-symbol.rainbow { background: linear-gradient(130deg,#f5c1b2,#fae8a5,#c6e4c0,#c8dbf0,#dcc4e4); }
+.booster-actions button { min-width: 44px; min-height: 44px; font-size: 12px; }
+.volume-control { display: block; margin: 18px 0; color: #41694f; font-weight: 800; font-size: 14px; }
+.volume-control output { float: right; color: #997247; }
+.volume-control input { width: 100%; height: 34px; accent-color: #739c77; touch-action: pan-x; }
+.audio-credit { font-size: 11px; color: #71816a; line-height: 1.8; text-align: center; }
+.audio-credit a { color: #487760; }
+.garden-overlay { justify-content: center; background: linear-gradient(#edf3dd,#b7d5b4); }
+.garden-page { width: 91%; max-height: 95%; overflow-y: auto; touch-action: pan-y; padding: 10px 6px 20px; }
+.garden-page h2 { margin: 14px 0 6px; font: bold 30px Georgia,serif; color: #315d49; }
+.garden-page p { margin: 4px 0 14px; color: #59785f; font-size: 12px; }
+.garden-art { display: block; width: 100%; max-height: 47vh; border: 3px solid #fff5dc; border-radius: 26px; box-shadow: 0 8px 0 #7fa47d45; }
+.garden-progress { margin: 22px 0 12px; display: flex; flex-direction: column; gap: 5px; }
+.garden-progress strong { font: bold 17px Georgia,serif; }
+.garden-progress span { font-size: 11px; color: #638164; }
+.garden-page .garden-note { line-height: 1.6; margin: 10px 18px 20px; }
+.garden-bee { animation: garden-flight 4s ease-in-out infinite; }
+.garden-wings { transform-box: fill-box; transform-origin: center bottom; animation: wing-flutter .12s ease-in-out infinite alternate; }
+@keyframes garden-flight { 50% { transform: translate(12px,-15px) rotate(7deg); } }
+@keyframes wing-flutter { to { transform: scaleY(.35); } }
+.home-quick-actions { gap: 3px; justify-content: space-between; }
+.home-quick-actions button { min-height: 38px; padding: 4px 7px; }
+.home-panel { bottom: 5%; }
+.home-panel .secondary-button { margin-top: 12px; }
+.result-links { gap: 8px; flex-wrap: wrap; }
+.result-links .text-button { min-height: 30px; }
+.result-card { max-height: 94%; overflow-y: auto; touch-action: pan-y; }
+.result-card .rule-footnote { font-size: 11px; margin: 18px auto 8px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+.save-sheet { max-height: 93%; }
+.save-status { font-size: 11px; line-height: 1.5; color: #50765d; }
+.save-warning { color: #954b34; font-weight: bold; }
+#garden-name-form label { font-size: 12px; font-weight: bold; color: #497459; }
+.garden-name-row { display: flex; gap: 7px; margin-top: 7px; }
+.garden-name-row input { min-width: 0; width: 60%; border: 1px solid #9db99b; border-radius: 10px; padding: 9px; font: inherit; font-size: 16px; background: #fffdf5; color: #315c49; }
+.garden-name-row button { width: 40%; font-size: 12px; }
+.save-unlocks { padding: 7px 12px; border-radius: 14px; background: #ebf2df; }
+.save-unlocks p { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; line-height: 1.7; margin: 6px 0; }
+.save-unlocks strong { white-space: nowrap; font-size: 11px; }
+.save-buttons { display: grid; gap: 10px; margin-top: 12px; }
+.previous-journey { border: 1px solid #d9c9a5; border-radius: 14px; padding: 12px; margin-top: 18px; font-size: 12px; line-height: 1.6; }
+
+.save-sheet h2, .previous-journey, .result-card p { overflow-wrap: anywhere; }
+
+/* Gentle visual polish; all gameplay stays on the same grid. */
+.result-star { display: inline-block; }
+.result-star.earned { animation: star-arrival .4s ease-out both; animation-delay: var(--star-delay); filter: drop-shadow(0 2px 0 #f8dd98); }
+@keyframes star-arrival { from { opacity: 0; transform: translateY(7px) scale(.55) rotate(-12deg); } to { opacity: 1; transform: none; } }
+.win-card { background: radial-gradient(ellipse at 50% 18%,#fffdf1,#fff5dc 75%); }
+.win-card .result-art img { animation: rescued-friend 2.4s ease-in-out infinite; }
+@keyframes rescued-friend { 50% { transform: translateY(-4px) rotate(3deg); } }
+.quick-booster { transition: border-color .16s ease, box-shadow .16s ease; }
+.quick-booster.equipped { background-image: radial-gradient(ellipse at 28% 18%,#ffffffb0,transparent 70%); }
+.quick-booster.rainbow.equipped { background-image: linear-gradient(120deg,#f5c1b2,#fae8a5,#c6e4c0,#c8dbf0,#dcc4e4); }
+@media (hover:hover) {
+  .secondary-button:hover { background-color: #f1f7e7; border-color: #68977c; }
+  .quick-booster:not(:disabled):hover { box-shadow: 0 4px 0 #71987a,0 0 0 2px #fff5d3; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .result-star.earned, .win-card .result-art img { animation: none; }
+}
+
+.mechanic-chip { min-height: 24px; padding: 2px 7px; }
+
+.friend-portrait img { width: 46px; height: 46px; display: block; }
