@@ -79,7 +79,7 @@ button:disabled { cursor: default; }
   gap: 4px;
   width: fit-content;
   max-width: 94%;
-  margin: 7px auto 0;
+  margin: 24px auto 0;
   padding: 0;
   color: #795d3d;
   text-align: center;
@@ -536,3 +536,25 @@ button:disabled { cursor: default; }
 .mechanic-chip { min-height: 24px; padding: 2px 7px; }
 
 .friend-portrait img { width: 46px; height: 46px; display: block; }
+
+#coach-line { max-width: 340px; margin: 0 auto 3px; line-height: 1.4; min-height: 0; }
+#star-target { position: absolute; top: 14%; left: 0; right: 0; text-align: center; color: #214e43; font-size: 11px; font-weight: bold; }
+
+.mechanic-status { flex-wrap: nowrap; overflow-x: auto; touch-action: pan-x; }
+.mechanic-chip { flex-shrink: 0; }
+
+/* Side adventures share the garden's paper-and-honey palette. */
+.adventure-card { display: flex; width: 100%; gap: 12px; align-items: center; padding: 15px 12px; margin: 9px 0; border: 1px solid #a4bfa1; border-radius: 18px; background: #f5f7e7; color: #315a4a; text-align: left; font: inherit; }
+.adventure-card strong, .adventure-card small { display: block; }
+.adventure-card strong { font-size: 15px; line-height: 1.3; }
+.adventure-card small { font-size: 11px; line-height: 1.5; margin-top: 5px; }
+.adventure-card:disabled { opacity: .65; background: #e8e9df; }
+.adventure-card:not(:disabled):hover { border-color: #b6814b; background: #fff5d9; }
+.boss-card { background: #fff0d3; border-color: #d5b785; }
+.boss-card img { width: 84px; height: 84px; object-fit: contain; flex-shrink: 0; }
+.medal-symbol { font-size: 32px; color: #ab7e43; }
+.magpie-portrait { width: 150px; height: 150px; display: block; margin: 0 auto; }
+.magpie-quote { font-family: Georgia, serif; font-style: italic; color: #886648; }
+.challenge-emblem { font-size: 62px; color: #b18743; line-height: 1.2; }
+.home-panel .adventure-link { font-size: 12px; padding: 9px; margin-top: 9px; }
+.adventures-sheet .sheet-lead { margin-bottom: 8px; }

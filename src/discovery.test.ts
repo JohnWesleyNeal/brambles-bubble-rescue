@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { BubbleBoard } from './board';
 import { GameEngine } from './engine';
-import { levels, legacyLevels } from './levels';
+import { levels, legacyLevels } from './levels-v3';
 import { replays } from './replay-fixtures';
 import { restoreActiveRun, type RunAction } from './run';
 import { migrateSave, recordMastery } from './progress';
 import { exportJourney, importJourney } from './save-management';
 import { friendsCards, styleChoices, masteryLabels } from './friends';
+
+const edition3Engine = (level: typeof levels[number]) => new GameEngine(level, 3);
 
 const refreshed: Record<number, string> = {
   7: '-1.2 -1.2', 9: '-1.2s -1.2', 12: '-1.15s 0.4s',
@@ -25,7 +27,7 @@ function play(engine: GameEngine, route: string, actions: RunAction[] = []): voi
 
 describe('new meadow edition', () => {
   for (const level of levels) it(`level ${level.id} wins with normal shots and its original allowance`, () => {
-    const engine = new GameEngine(level);
+    const engine = edition3Engine(level);
     play(engine, refreshed[level.id] ?? replays[level.id - 1]);
     expect(engine.won).toBe(true);
     expect(engine.shots).toBeGreaterThanOrEqual(0);
@@ -47,7 +49,7 @@ describe('new meadow edition', () => {
   });
 
   it('keeps Mabel waiting at a blocked gate and restores charge and path movement', () => {
-    const engine = new GameEngine(levels[13]);
+    const engine = edition3Engine(levels[13]);
     expect(engine.totalBees).toBe(1);
     expect(engine.flightStep).toBe(1);
     expect(engine.won).toBe(false);
@@ -61,7 +63,7 @@ describe('new meadow edition', () => {
   });
 
   it('awards Mabel exactly once and winning takes precedence over the last shot', () => {
-    const engine = new GameEngine({ ...levels[13], rows: ['....rr...'], specials: [], shots: 1, flightPath: [{ row: 1, col: 4 }, { row: 0, col: 4 }] });
+    const engine = edition3Engine({ ...levels[13], rows: ['....rr...'], specials: [], shots: 1, flightPath: [{ row: 1, col: 4 }, { row: 0, col: 4 }] });
     engine.currentColor = 'R';
     const result = engine.fire(0);
     expect(result.flight?.arrived).toBe(true);
@@ -74,7 +76,7 @@ describe('new meadow edition', () => {
 
 describe('earned Bloom', () => {
   it('fills from cleared bubbles, survives cancel, and round trips an equipped flower', () => {
-    const engine = new GameEngine(levels[13]);
+    const engine = edition3Engine(levels[13]);
     const actions: RunAction[] = [];
     play(engine, '-1.2s -1.2s -1.2', actions);
     expect(engine.bloomCharge).toBe(12);
@@ -94,7 +96,7 @@ describe('earned Bloom', () => {
   });
 
   it('cannot equip early and does not spend a charged flower on a blocked target', () => {
-    const engine = new GameEngine({ ...levels[6], rows: ['r........'], specials: [{ row: 0, col: 4, kind: 'honeycomb' }] });
+    const engine = edition3Engine({ ...levels[6], rows: ['r........'], specials: [{ row: 0, col: 4, kind: 'honeycomb' }] });
     expect(engine.armBloom()).toBe(false);
     engine.bloomCharge = 12; expect(engine.armBloom()).toBe(true);
     const shots = engine.shots;
@@ -121,7 +123,7 @@ describe('earned Bloom', () => {
   });
 
   it('mutually excludes inventory gifts and the retry assist', () => {
-    const engine = new GameEngine(levels[6]); engine.bloomCharge = 12;
+    const engine = edition3Engine(levels[6]); engine.bloomCharge = 12;
     engine.armBloom(); engine.armBooster('rainbow');
     expect(engine.bloomArmed).toBe(false);
     engine.armBloom(); expect(engine.armedBooster).toBeUndefined();

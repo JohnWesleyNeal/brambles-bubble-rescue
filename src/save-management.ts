@@ -46,5 +46,6 @@ export function importJourney(text: string): JourneyData {
   }
   const result = snapshotJourney(migrateSave(data));
   if (data.activeRun && !restoreActiveRun(data.activeRun, levels, result.unlocked)) throw new Error('The unfinished meadow in this backup cannot be restored. Your current garden has not changed.');
+  if (data.activeSideRun && (!restoreActiveRun(data.activeSideRun, levels, result.unlocked) || !result.activeSideRun?.activity)) throw new Error('The side adventure in this backup cannot be restored.');
   return result;
 }

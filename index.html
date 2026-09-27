@@ -23,11 +23,12 @@
             <div class="stat"><span class="stat-icon" id="hive-target" aria-label="Bee hive"><svg viewBox="0 0 32 32" width="25" height="25" aria-hidden="true"><path d="M4 27Q4 5 16 3q12 2 12 24Z" fill="#deb567" stroke="#a67a40" stroke-width="2"/><path d="M8 12h16M6 18h20M4 24h24" stroke="#b48a46" stroke-width="2"/><path d="M12 28v-5a4 4 0 0 1 8 0v5" fill="#775737"/></svg></span><span><strong id="bees-count">0/0</strong><small>friends freed</small></span></div>
             <div class="stat"><span class="stat-icon">◉</span><span><strong id="shots-count">0</strong><small>bubbles left</small></span></div>
           </div>
+          <small id="star-target"></small>
           <div id="mechanic-status" class="mechanic-status hidden"></div>
           <button id="bloom-shot" hidden aria-label="Equip earned Bloom shot" aria-pressed="false"></button>
           <div id="quick-boosters" aria-label="Power-up shots"></div>
           <div class="game-bottom">
-            <p>Drag to aim · release to pop</p>
+            <p id="coach-line">Drag to aim · release to pop</p>
             <div class="game-actions">
               <button id="rules-button" class="pill-button small" aria-label="Open bubble rules">ⓘ Rules</button>
               <button id="help-button" class="pill-button small" aria-label="Show level hint">? Hint</button>

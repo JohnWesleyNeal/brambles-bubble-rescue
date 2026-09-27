@@ -8,7 +8,7 @@ Drag inside the play area to aim, then release to shoot. Match at least three bu
 
 The **pause** button keeps the current board, queue, remaining shots, and equipped power-up. From there you can resume, restart, read Rules, open Gifts, change sound, or return to the meadows. The home screen offers **Resume** after leaving or reopening the app. Starting another level replaces a saved attempt only after a confirmation. A winning shot saves its clear immediately, even if the app closes during the celebration.
 
-New mechanics now arrive from the first meadow: hanging drops at level 3, pollen at 4, banks at 6, honeycomb at 8, dew at 11, wind at 16, and changing blooms at 19. Later boards have deeper bee targets, more mixed mechanics, and tighter shot budgets. Each chapter has its own board palette, and shots now call out bee rescues, pollen refunds, cracked dew, and chain drops. Every level has a recorded winning route using regular bubbles alone.
+The revised campaign teaches swapping at 2, drops at 3 with practice at 4, pollen at 5, banks at 6, gifts at 7, honeycomb at 8, earned Bloom at 9, dew at 11, Mabel at 14 with immediate practice at 15, wind at 16, and chameleon flowers at 19. The first wind board has no dew shell; late levels add protected top-corner bee pockets that require a return visit. Later boards have deeper bee targets, more mixed mechanics, and tighter shot budgets. Each chapter has its own board palette, and shots now call out bee rescues, pollen refunds, cracked dew, and chain drops. Every level has a recorded winning route using regular bubbles alone.
 
 ## A little more cosy
 
@@ -24,7 +24,7 @@ Rescued bees flutter toward the hive counter; their progress saves immediately, 
 
 **Sound** has separate remembered music and effects volumes. Music begins only after interaction and pauses when the app is hidden. The bundled soundtrack, *Sunset Walk* by KiluaBoy, is shared under CC0; see `public/audio/CREDITS.txt` and the in-game credit. Music works offline after the first complete cache download.
 
-Save version 4 migrates previous journeys and now includes garden colors and optional keepsakes. New attempts use run version 3, with earned Bloom and flight-path objectives. Run versions 1 and 2 reconstruct their frozen layouts from `legacyLevels`; version 2 supports the Rainbow burst and top-up action. Existing version-1 attempts keep their original rules (including chosen-color Rainbow and shot-limit losses) until completed or restarted, so replaying their saved actions restores the same board and queue.
+Save version 4 migrates previous journeys and now includes garden colors and optional keepsakes. New attempts use run version 4, with earned Bloom and flight-path objectives. Run versions 1 and 2 reconstruct their frozen layouts from `legacyLevels`; version 3 reconstructs the previous campaign from `levels-v3.ts`; version 2 supports the Rainbow burst and top-up action. Existing version-1 attempts keep their original rules (including chosen-color Rainbow and shot-limit losses) until completed or restarted, so replaying their saved actions restores the same board and queue.
 
 ## My Garden and backups
 
@@ -56,12 +56,30 @@ Characters, illustrations, and synthesized sound effects are original. The third
 
 ## A little more discovery
 
-Six refreshed meadows (7, 9, 12, 14, 18 and 23) introduce split branches, a hanging picnic, hedge windows, an ivy cup and two guided flight paths. The 30-level journey and existing stars are retained. Levels 14 and 23 ask you to clear a route home for Mabel; the route advances after shots, and the rescue saves before her arrival animation finishes.
+The campaign’s refreshed meadows include a hanging picnic, hedge windows, an ivy cup and two guided flight paths. The 30-level journey and existing stars are retained. Levels 14 and 15 ask you to clear a route home for Mabel; the route advances after shots, and the rescue saves before her arrival animation finishes.
 
-From level 7 in new attempts, clearing 12 bubbles grows an earned **Bloom shot**. It clears a colored impact and its colored neighbors, cracks dew, and leaves honeycomb intact. It costs one regular shot, uses no gift stock, can be canceled freely, and cannot recharge itself. The meter caps at one ready Bloom.
+From level 9 in new attempts, clearing 12 bubbles grows an earned **Bloom shot**. It clears a colored impact and its colored neighbors, cracks dew, and leaves honeycomb intact. It costs one regular shot, uses no gift stock, can be canceled freely, and cannot recharge itself. The meter caps at one ready Bloom.
 
 Mabel, Sir Buzzby, Clover and Pip move into the garden after 5, 10, 20 and 30 unique clears. They have little biographies and distinctive hats. Garden palettes unlock at 5 and 10 clears; switch freely in the garden or Emporium. All rewards derive from permanent progress.
 
 Optional keepsakes remember Garden craft (no gifts, retry assist or top-ups; earned Bloom is allowed), Lovely cascade (8 bubbles dropped in one shot), and Around the bend (a bank shot freeing a bubbled bee). Best shot counts and keepsakes survive replays and backups, independently of stars. Older clears retain their stars without inventing mastery records.
 
 Validation includes normal-shot winning routes for all 30 current levels and all 30 frozen legacy levels, both old Rainbow replay versions, Bloom protection/charge/cancel behavior, flight-path persistence and final-shot victory, reward migration and backup round trips.
+
+## Campaign polish edition
+
+Normal aim previews ring bubbles that will match and shells that will crack. A short coaching line calls attention to Swap, drops, banks, wind timing and a ready Bloom. The three-star target and shots taken remain visible during play. **Hint → Help with this board** simulates possible shots using the current board and both queue colors, then suggests a useful direction and explains its benefit. Reading a hint never changes the live board, queue, wind, gifts or shot count, and does not claim a globally optimal solution. Optional **Show this aim** displays the suggested trajectory without firing; **Swap & show this aim** explicitly exchanges the queue first.
+
+All 30 current levels have a recorded regular-shot route within their three-star target in `src/campaign.test.ts`. The final stretch uses protected top-corner bees to extend the puzzle; allowances leave two shots beyond the authored star target. Gifts and repeatable five-shot top-ups remain free. These automated routes establish solvability, not human difficulty or phone aiming acceptance.
+
+Existing stars and gardens stay intact. To experience all revised lessons in order, use **My Garden → Start a fresh journey**. The existing recovery slot keeps the current journey; download a backup first if you also want to retain an older recovery copy. No reset is performed automatically. Old in-progress runs retain their layouts, shot allowances and rules until finished or restarted.
+
+## Side adventures and Monty’s picnic heist
+
+Open **Side adventures · challenges & boss** from home. Six curated challenges unlock after clearing their meadow: Trust Your Paw (3 and 12; short aiming stem only, no trajectory/landing/match preview or computed hints), Around the Bend (6 and 21; rescue 2 or 4 bees with bank shots), Travel Light (9; no gifts, wild shots or refills, earned Bloom allowed), and Perfect Picnic (10; five total shots, including wilds, with no extension from pollen or refills). Medal progress is separate from stars. Pause and choose **Continue as normal · no medal** to retain the current board while removing challenge restrictions. Exhausted restricted challenges offer the same choice with five free bubbles.
+
+**The Great Picnic Heist** unlocks after all first 20 meadows are cleared. Monty the magpie guards a borrowed basket: release both clasp bees, outsmart a shifting honeycomb screen, then clear Mabel’s route home. Each phase has its own briefing, character reaction and saved checkpoint. Gifts and extra bubbles remain free; overflow retries only the current phase. **Monty’s Revenge**, unlocked after all 30 clears, adds protected clasps, the more demanding reunion board, and a different flight route. Each completion earns a picnic keepsake visible in the Bee Garden.
+
+The campaign and side adventure have separate unfinished-run slots. Starting another side adventure asks before replacing a played side board; main progress is retained. Side activities, relaxed challenge status, medals and boss checkpoints survive reloads, backups and journey recovery. New optional fields migrate into save version 4; campaign run editions 1–4 retain their existing interpretation.
+
+Validation includes normal-shot medal routes for every challenge and wins for all six boss/rematch phases, actual restriction enforcement, bank counts, pollen/wild shot limits, checkpoint persistence, independent campaign saves, relaxed-mode replay and backup round trips. Browser checks cover phase completion, reload, challenge exits, shop use and phone layout; personal difficulty and enjoyment still need playtesting.

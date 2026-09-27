@@ -1,3 +1,4 @@
+import { challenges } from './activities';
 import { boosters, type BoosterId } from './boosters';
 import { levels } from './levels';
 import type { ActiveRun } from './run';
@@ -18,6 +19,12 @@ export interface JourneyData {
   inventory: Record<BoosterId, number>;
   gardenStyle: 'meadow' | 'rose' | 'twilight';
   records: { best: number; unaided: boolean; cascade: boolean; bank: boolean }[];
+  medals: string[];
+  bossCleared: boolean;
+  rematchCleared: boolean;
+  bossCheckpoint: number;
+  rematchCheckpoint: number;
+  activeSideRun?: ActiveRun;
   activeRun?: ActiveRun;
 }
 
@@ -47,6 +54,12 @@ function migrateJourney(value: unknown): JourneyData {
     ? data.inventory as Record<string, unknown> : {};
   return {
     version: 4,
+    medals: Array.isArray(data.medals) ? [...new Set(data.medals.filter((id): id is string => typeof id === 'string' && challenges.some(c => c.id === id)))] : [],
+    bossCleared: data.bossCleared === true,
+    rematchCleared: data.rematchCleared === true,
+    bossCheckpoint: Math.min(2, count(data.bossCheckpoint)),
+    rematchCheckpoint: Math.min(2, count(data.rematchCheckpoint)),
+    ...(data.activeSideRun && typeof data.activeSideRun === 'object' ? { activeSideRun: data.activeSideRun as ActiveRun } : {}),
     gardenName: typeof data.gardenName === 'string' ? data.gardenName.trim().slice(0, 40) || 'My Garden' : 'My Garden',
     savedAt: count(data.savedAt),
     gardenStyle: data.gardenStyle === 'rose' || data.gardenStyle === 'twilight' ? data.gardenStyle : 'meadow',

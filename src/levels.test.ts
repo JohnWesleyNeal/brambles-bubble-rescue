@@ -3,18 +3,16 @@ import { BubbleBoard } from './board';
 import { levels } from './levels';
 
 describe('gift levels', () => {
-  it('introduces new tricks across the first six levels', () => {
-    expect(levels.slice(0, 6).map(({ shots }) => shots)).toEqual([25, 19, 17, 18, 18, 20]);
-    expect(levels.slice(0, 6).every(({ tutorial }) => Boolean(tutorial))).toBe(true);
-    expect(levels[3].specials.some(({ kind }) => kind === 'pollen')).toBe(true);
-    expect(levels[2].rows.join('')).toContain('y');
-  });
-
-  it('makes the later chapters tighter and gives them deeper bee targets', () => {
-    expect(levels.slice(15).every(({ shots, par }) => shots - par <= 4)).toBe(true);
-    expect(levels.slice(20).every(({ rows }) => rows.length >= 7)).toBe(true);
+  it('gives lessons practice space and isolates the first wind encounter', () => {
+    expect(levels[3].tutorial).toBeUndefined();
+    expect(levels.slice(0, 4).every(level => !level.specials.length)).toBe(true);
+    expect(levels[4].specials.some(tile => tile.kind === 'pollen')).toBe(true);
+    expect(levels[13].flightPath).toBeDefined();
+    expect(levels[14].flightPath).toBeDefined();
     expect(levels[15].wind).toBeDefined();
-    expect(levels[18].specials.some(({ kind }) => kind === 'bloom')).toBe(true);
+    expect(levels[15].specials).toEqual([]);
+    expect(levels[15].shots).toBeGreaterThan(levels[16].shots);
+    expect(levels.slice(20).every(({ shots, par }) => shots - par <= 2)).toBe(true);
   });
 
   it('all 30 levels load with bee targets and valid specials', () => {

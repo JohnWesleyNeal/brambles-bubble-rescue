@@ -1,6 +1,7 @@
 import { BubbleBoard, type BubbleColor, type SettleResult, type TurnResult } from './board';
 import type { LevelDefinition } from './levels';
 import type { BoosterId } from './boosters';
+import { challengeFor, type Activity } from './activities';
 import { traceShot, type ShotTrace } from './shot';
 
 export interface FireResult {
@@ -18,6 +19,7 @@ export interface FireResult {
 
 class SeededRandom {
   private state: number;
+  clone(): SeededRandom { return new SeededRandom(this.state); }
   constructor(seed: number) { this.state = seed >>> 0; }
   next(): number {
     this.state = (Math.imul(this.state, 1664525) + 1013904223) >>> 0;
@@ -48,8 +50,10 @@ export class GameEngine {
   usedHelp = false;
   largestDrop = 0;
   bankRescue = false;
+  bankBees = 0;
+  challengeRelaxed = false;
 
-  constructor(level: LevelDefinition, readonly rulesVersion: 1 | 2 | 3 = 3) {
+  constructor(level: LevelDefinition, readonly rulesVersion: 1 | 2 | 3 | 4 = 4, readonly activity?: Activity) {
     this.level = level;
     this.board = new BubbleBoard(level.rows, level.specials);
     this.totalBees = this.board.beeCount() + (this.flightPath ? 1 : 0);
@@ -60,8 +64,24 @@ export class GameEngine {
     this.nextColor = this.pickColor();
   }
 
+  get challenge() { return this.challengeRelaxed ? undefined : challengeFor(this.activity); }
+  get guideHidden(): boolean { return Boolean(this.challenge?.noGuide); }
+  get giftsAllowed(): boolean { return !this.challenge?.noGifts; }
+  get refillsAllowed(): boolean { return !this.challenge?.noGifts && !this.challenge?.shotLimit; }
+  get challengeComplete(): boolean { return Boolean(this.won && this.activity?.kind === 'challenge' && !this.challengeRelaxed && this.bankBees >= (this.challenge?.bankGoal ?? 0) && (!this.challenge?.shotLimit || this.turns <= this.challenge.shotLimit)); }
+  relaxChallenge(): boolean {
+    if (this.activity?.kind !== 'challenge' || this.challengeRelaxed || this.won || this.lost) return false;
+    this.challengeRelaxed = true; return true;
+  }
   get flightPath() { return this.rulesVersion >= 3 ? this.level.flightPath : undefined; }
-  get bloomUnlocked(): boolean { return this.rulesVersion >= 3 && this.level.id >= 7; }
+  // Independent simulation for contextual hints; never consumes the live queue.
+  clone(): GameEngine {
+    return Object.assign(new GameEngine(this.level, this.rulesVersion, this.activity), this, {
+      board: this.board.clone(), rng: this.rng.clone(),
+      armedBooster: this.armedBooster ? { ...this.armedBooster } : undefined
+    });
+  }
+  get bloomUnlocked(): boolean { return this.rulesVersion >= 3 && this.level.id >= (this.rulesVersion >= 4 ? 9 : 7); }
   armBloom(): boolean {
     if (!this.bloomUnlocked || this.bloomCharge < this.bloomGoal || this.won || this.lost || this.awaitingTopUp) return false;
     this.cancelSpecialShot();
@@ -87,7 +107,7 @@ export class GameEngine {
   }
 
   chooseWild(color: BubbleColor): boolean {
-    if (this.won || this.lost || this.wildUsed || !this.board.availableColors().includes(color)) return false;
+    if (!this.giftsAllowed || this.won || this.lost || this.wildUsed || !this.board.availableColors().includes(color)) return false;
     this.armedBooster = undefined;
     this.bloomArmed = false;
     this.wildColor = color;
@@ -95,7 +115,7 @@ export class GameEngine {
   }
 
   armBooster(id: BoosterId, color?: BubbleColor): boolean {
-    if (this.won || this.lost || (id === 'rainbow' && this.rulesVersion === 1 && (!color || !this.board.availableColors().includes(color)))) return false;
+    if (!this.giftsAllowed || this.won || this.lost || (id === 'rainbow' && this.rulesVersion === 1 && (!color || !this.board.availableColors().includes(color)))) return false;
     this.wildColor = undefined;
     this.bloomArmed = false;
     this.armedBooster = { id, ...(this.rulesVersion === 1 && color ? { color } : {}) };
@@ -117,7 +137,7 @@ export class GameEngine {
   }
 
   topUp(): boolean {
-    if (!this.awaitingTopUp || this.won || this.lost) return false;
+    if (!this.refillsAllowed || !this.awaitingTopUp || this.won || this.lost) return false;
     this.shots += 5;
     this.usedHelp = true;
     this.awaitingTopUp = false;
@@ -159,7 +179,7 @@ export class GameEngine {
     const dropped = settled.dropped.length + turn.dropped.length;
     this.largestDrop = Math.max(this.largestDrop, dropped);
     const banked = trace.path.some((point, i, path) => i > 1 && (point.x - path[i - 1].x) * (path[i - 1].x - path[i - 2].x) < 0);
-    if (banked && settled.beesFreed + turn.beesFreed > 0) this.bankRescue = true;
+    if (banked && settled.beesFreed + turn.beesFreed > 0) { this.bankRescue = true; this.bankBees += settled.beesFreed + turn.beesFreed; }
     if (this.bloomUnlocked && !bloom) this.bloomCharge = Math.min(this.bloomGoal, this.bloomCharge + settled.popped.length + dropped);
     const from = this.flightStep;
     this.advanceFlight();
@@ -174,6 +194,7 @@ export class GameEngine {
     }
     this.won = this.board.beeCount() === 0 && (!this.flightPath || this.flightStep === this.flightPath.length);
     this.lost = !this.won && (this.board.isOverflowing() || (this.rulesVersion === 1 && this.shots <= 0));
+    if (this.challenge?.shotLimit) this.shots = Math.min(this.shots, Math.max(0, this.challenge.shotLimit - this.turns));
     this.awaitingTopUp = !this.won && !this.lost && this.shots <= 0;
     return { trace, settled, turn, color, wild, booster, bloom, flight: this.flightPath ? { from, to: this.flightStep, arrived } : undefined, won: this.won, lost: this.lost };
   }

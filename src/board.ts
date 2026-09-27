@@ -58,6 +58,13 @@ export class BubbleBoard {
   private cells = new Map<string, Bubble>();
   private windOffset = 0;
 
+  clone(): BubbleBoard {
+    const copy = new BubbleBoard([]);
+    copy.cells = new Map([...this.cells].map(([key, bubble]) => [key, { ...bubble }]));
+    copy.windOffset = this.windOffset;
+    return copy;
+  }
+
   constructor(rows: string[], specials: SpecialTile[] = []) {
     rows.forEach((text, row) => {
       if (text.length !== columnsInRow(row)) throw new Error(`Row ${row} needs ${columnsInRow(row)} cells`);

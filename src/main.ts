@@ -10,6 +10,10 @@ import { consumeBooster, loadSave, recordLoss, recordWin, recordMastery, refillG
 import { restoreActiveRun, type RestoredRun, type RunAction } from './run';
 import type { ShotTrace } from './shot';
 import './style.css';
+import { coaching, suggestShot } from './advice';
+import { activityLevel, activityUnlocked, bossPhases, challengeFor, type Activity } from './activities';
+import { recordActivityResult } from './activity-progress';
+import { showActivityMenu, showActivityIntro, showActivityResult } from './activity-screen';
 import { WoodlandAudio } from './audio';
 import { gardenArt } from './garden';
 import { friends, friendsCards, styleChoices, gardenStyles, masteryLabels } from './friends';
@@ -123,6 +127,7 @@ class PlayScene extends Phaser.Scene {
 
   constructor() { super('Play'); }
   preload(): void {
+    this.load.image('magpie', `${BASE}magpie.png`);
     this.load.image('bramble', `${BASE}bramble.png`);
     this.load.image('bee', `${BASE}bee.png`);
     this.load.image('bee-body', `${BASE}bee-body.png`);
@@ -164,7 +169,7 @@ class PlayScene extends Phaser.Scene {
     this.engine = restored?.engine ?? new GameEngine(levels[index]);
     this.displayedBees = this.engine.freedBees;
     this.runActions = restored?.actions.slice() ?? [];
-    save.activeRun = { version: this.engine!.rulesVersion, levelId: levels[index].id, actions: this.runActions.slice() };
+    this.saveAttempt();
     storeSave(save);
     this.setInspectMode(false);
     this.aiming = false;
@@ -201,9 +206,19 @@ class PlayScene extends Phaser.Scene {
     this.wildLabel?.destroy();
   }
 
+  private saveAttempt(): void {
+    const engine = this.engine!;
+    const run = { version: engine.rulesVersion, levelId: engine.level.id, actions: this.runActions.slice(), ...(engine.activity ? { activity: engine.activity } : {}) };
+    if (engine.activity) save.activeSideRun = run; else save.activeRun = run;
+  }
+  relaxChallenge(): void {
+    if (this.isBusy() || !this.engine?.relaxChallenge()) return;
+    this.remember({ type: 'relax' }); updateHud(this); this.drawAim();
+    if (this.engine.awaitingTopUp) this.topUp(); else backToLevel();
+  }
   private remember(action: RunAction): void {
     this.runActions.push(action);
-    save.activeRun = { version: this.engine!.rulesVersion, levelId: this.levelIndex + 1, actions: this.runActions.slice() };
+    this.saveAttempt();
     storeSave(save);
   }
 
@@ -321,6 +336,14 @@ class PlayScene extends Phaser.Scene {
     sling.lineStyle(5, 0x7b5634, 1).strokeRoundedRect(182, 708, 26, 43, 10);
     sling.lineStyle(7, 0x9a653b, 1).lineBetween(195, 718, 195, 683);
     this.sceneryLayer.add(sling);
+    if (this.engine?.activity?.kind === 'boss') {
+      const monty = this.add.image(73, 555, 'magpie').setDisplaySize(110, 110);
+      this.sceneryLayer.add(monty);
+      this.sceneryLayer.add(this.add.text(132, 530, `MONTY’S PICNIC HEIST\nPhase ${this.engine.activity.phase + 1} of 3\n${['Undo both clasps', 'Outsmart the moving screen', 'Bring Mabel home'][this.engine.activity.phase]}`, {
+        fontFamily: 'Trebuchet MS', fontSize: '12px', color: '#315851', lineSpacing: 5
+      }));
+      if (!reducedMotion.matches) this.tweens.add({ targets: monty, angle: { from: -3, to: 3 }, duration: 1800, yoyo: true, repeat: -1 });
+    }
     this.sceneryLayer.add(this.add.text(290, 756, 'NEXT', {
       fontFamily: 'Trebuchet MS, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#285a4d', letterSpacing: 1
     }).setOrigin(.5));
@@ -503,6 +526,12 @@ class PlayScene extends Phaser.Scene {
     }
     return orb;
   }
+  showSuggestedAim(angle: number, swap: boolean): void {
+    if (this.engine?.guideHidden || this.isBusy()) return;
+    if (swap) this.swap();
+    this.aimAngle = angle;
+    this.drawAim();
+  }
   private setAim(x: number, y: number): void {
     this.aimAngle = Phaser.Math.Clamp(Math.atan2(x - 195, 690 - y), -1.25, 1.25);
     this.drawAim();
@@ -510,6 +539,10 @@ class PlayScene extends Phaser.Scene {
   private drawAim(): void {
     this.aimGraphics.clear();
     if (!this.engine || this.flying || this.resolving || this.inspectMode || this.engine.won || this.engine.lost || this.engine.awaitingTopUp) return;
+    if (this.engine.guideHidden) {
+      this.aimGraphics.lineStyle(3, 0xfff4cf, .85).lineBetween(195 + Math.sin(this.aimAngle) * 24, 690 - Math.cos(this.aimAngle) * 24, 195 + Math.sin(this.aimAngle) * 62, 690 - Math.cos(this.aimAngle) * 62);
+      return;
+    }
     const trace = this.engine.preview(this.aimAngle);
     for (let i = 4; i < trace.path.length; i += 5) {
       const point = trace.path[i];
@@ -525,6 +558,17 @@ class PlayScene extends Phaser.Scene {
         const p = cellPosition(cell); this.aimGraphics.lineStyle(2, 0xffffff, .9).strokeCircle(p.x, p.y, 20);
       }
     } else if (trace.placement) {
+      if (!this.engine.armedBooster || this.engine.armedBooster.id === 'double') {
+        const preview = this.engine.board.clone().settle(trace.placement, normalBubble(this.engine.shotColor()), this.engine.armedBooster?.id === 'double' ? 2 : 3);
+        for (const cell of preview.popped) {
+          const point = cellPosition(cell);
+          this.aimGraphics.lineStyle(2, 0xfff7d3, .95).strokeCircle(point.x, point.y, 19);
+        }
+        for (const cell of preview.cracked) {
+          const point = cellPosition(cell);
+          this.aimGraphics.lineStyle(2, 0xcff5ff, .95).strokeCircle(point.x, point.y, 20);
+        }
+      }
       const p = cellPosition(trace.placement);
       this.aimGraphics.fillStyle(palette[this.engine.shotColor()].fill, .24).fillCircle(p.x, p.y, 16);
       this.aimGraphics.lineStyle(2, palette[this.engine.shotColor()].edge, .75).strokeCircle(p.x, p.y, 16);
@@ -572,7 +616,10 @@ class PlayScene extends Phaser.Scene {
     if (result.booster) consumeBooster(save, result.booster);
     let stars = 0;
     let firstClear = false;
-    if (result.won) {
+    if (this.engine.activity) {
+      if (result.won || result.lost) recordActivityResult(save, this.engine);
+      else { this.runActions.push({ type: 'fire', angle: shot.angle }); this.saveAttempt(); }
+    } else if (result.won) {
       const margin = this.engine.level.shots - this.engine.level.par;
       const used = this.engine.turns;
       stars = used <= this.engine.level.par ? 3 : used <= this.engine.level.par + Math.floor(margin / 2) ? 2 : 1;
@@ -585,7 +632,7 @@ class PlayScene extends Phaser.Scene {
       delete save.activeRun;
     } else {
       this.runActions.push({ type: 'fire', angle: shot.angle });
-      save.activeRun = { version: this.engine!.rulesVersion, levelId: this.levelIndex + 1, actions: this.runActions.slice() };
+      this.saveAttempt();
     }
     storeSave(save);
     this.resolving = true;
@@ -631,13 +678,13 @@ class PlayScene extends Phaser.Scene {
     else if (this.engine?.bloomUnlocked && this.engine.bloomCharge === this.engine.bloomGoal) labels.push('Bloom is ready beside the launcher ✿');
     if (result.flight?.arrived) labels.push('Mabel found her way home!');
     if (freed) labels.push(freed === 1 ? 'Bee friend home! 🐝' : `${freed} bee friends home! 🐝`);
-    if (bonus) labels.push(`+${bonus} bubbles from pollen ✺`);
+    if (bonus) labels.push(this.engine?.challenge?.shotLimit ? 'Pollen found · challenge limit stays' : `+${bonus} bubbles from pollen ✺`);
     else if (cracked) labels.push('Dew shell cracked ❄');
     else if (dropped >= 4) labels.push('Lovely chain drop! ↓');
     else if (result.booster === 'bonk') labels.push('Bonk! ⬢');
     else if (result.turn?.moved) labels.push('The breeze shifted →');
     labels.slice(0, 2).forEach((label, index) => {
-      const message = this.add.text(195, 548 + index * 29, label, {
+      const message = this.add.text(195, (this.engine?.activity?.kind === 'boss' ? 461 : 548) + index * 29, label, {
         fontFamily: 'Trebuchet MS, sans-serif', fontSize: '15px', fontStyle: 'bold', color: '#fff8dd',
         backgroundColor: '#275e52'
       }).setPadding(9, 5).setOrigin(.5).setDepth(20);
@@ -744,9 +791,11 @@ new Phaser.Game({
 function updateHud(current: PlayScene): void {
   const engine = current.engine;
   if (!engine) return;
-  levelNumber.textContent = String(current.getLevelIndex() + 1).padStart(2, '0');
+  levelNumber.textContent = engine.activity?.kind === 'boss' ? `BOSS ${engine.activity.phase + 1}/3` : String(current.getLevelIndex() + 1).padStart(2, '0');
   levelName.textContent = engine.level.name;
   shotsCount.textContent = String(engine.shots);
+  document.querySelector('#coach-line')!.textContent = coaching(engine);
+  document.querySelector('#star-target')!.textContent = engine.activity ? engine.activity.kind === 'boss' ? 'Picnic heist · gifts welcome · checkpoint each phase' : engine.challengeRelaxed ? 'Practice · challenge rules off · no medal this attempt' : engine.challenge?.bankGoal ? `Bank-shot rescues ${engine.bankBees}/${engine.challenge.bankGoal} · finish to earn the medal` : `${engine.level.name} · ${engine.turns} shots taken` : `★ ★ ★ in ${engine.level.par} shots · taken ${engine.turns}`;
   beesCount.textContent = `${current.displayedBees}/${engine.totalBees}`;
   const bloomButton = document.querySelector<HTMLButtonElement>('#bloom-shot')!;
   bloomButton.hidden = !engine.bloomUnlocked;
@@ -764,7 +813,7 @@ function updateHud(current: PlayScene): void {
   }
   for (const kind of ['pollen', 'honeycomb', 'dew', 'bloom'] as const) {
     if (engine.board.entries().some(({ bubble }) => bubble.kind === kind)) {
-      chips.push(`<button class="mechanic-chip" data-rule="${kind}" aria-label="${ruleById[kind].name} rules">${ruleById[kind].symbol} ${{ pollen: 'Pollen', honeycomb: 'Honeycomb', dew: 'Dew', bloom: 'Bloom' }[kind]}</button>`);
+      chips.push(`<button class="mechanic-chip" data-rule="${kind}" aria-label="${ruleById[kind].name} rules">${ruleById[kind].symbol} ${{ pollen: 'Pollen', honeycomb: 'Honeycomb', dew: 'Dew', bloom: 'Chameleon' }[kind]}</button>`);
     }
   }
   if (engine.armedBooster || engine.wildColor) {
@@ -772,9 +821,9 @@ function updateHud(current: PlayScene): void {
     chips.push(`<button class="mechanic-chip armed" data-cancel-special="true">${escapeHtml(name)} ready ×</button>`);
   }
   document.querySelector('#quick-boosters')!.innerHTML = boosters.map((b) => {
-    const locked = save.unlocked < b.unlockLevel;
+    const locked = save.unlocked < b.unlockLevel || !engine.giftsAllowed;
     const armed = engine.armedBooster?.id === b.id;
-    return `<button class="quick-booster ${b.id} ${armed ? 'equipped' : ''}" data-quick="${b.id}" title="${b.name}" aria-pressed="${armed}" aria-label="${armed ? 'Cancel' : 'Equip'} ${b.name}, ${locked ? 'opens at level ' + b.unlockLevel : save.inventory[b.id] + ' available'}" ${locked || (!armed && !save.inventory[b.id]) ? 'disabled' : ''}><span>${b.symbol}</span><small>${armed ? 'Cancel' : locked ? 'L' + b.unlockLevel : '×' + save.inventory[b.id]}</small></button>`;
+    return `<button class="quick-booster ${b.id} ${armed ? 'equipped' : ''}" data-quick="${b.id}" title="${b.name}" aria-pressed="${armed}" aria-label="${armed ? 'Cancel' : 'Equip'} ${b.name}, ${locked ? !engine.giftsAllowed ? 'unavailable in Travel Light' : 'opens at level ' + b.unlockLevel : save.inventory[b.id] + ' available'}" ${locked || (!armed && !save.inventory[b.id]) ? 'disabled' : ''}><span>${b.symbol}</span><small>${armed ? 'Cancel' : locked ? !engine.giftsAllowed ? 'Off' : 'L' + b.unlockLevel : '×' + save.inventory[b.id]}</small></button>`;
   }).join('');
   mechanicStatus.innerHTML = chips.join('');
   mechanicStatus.classList.toggle('hidden', chips.length === 0);
@@ -794,24 +843,26 @@ function showPause(): void {
   if (scene.deferUntilReady(showPause)) return;
   scene.setInspectMode(false);
   overlay.className = 'overlay result-overlay';
-  overlay.innerHTML = `<div class="result-card pause-card" role="dialog" aria-label="Paused game"><span class="eyebrow">A LITTLE BREATHER</span><h2>${escapeHtml(engine.level.name)}</h2><p>${engine.freedBees} of ${engine.totalBees} bee friends home · ${engine.shots} bubbles left</p><div class="pause-saved">✦ Your board and next bubbles are saved automatically.</div><button id="pause-continue" class="primary-button">Keep playing <span>➜</span></button><button id="pause-restart" class="secondary-button">Restart this level</button><div class="result-links"><button id="pause-rules" class="text-button">Rules</button><button id="pause-bag" class="text-button">Gifts ✿</button><button id="pause-sound" class="text-button">Sound ${save.muted ? 'off' : 'on'}</button></div><button id="pause-save" class="text-button">My Garden & saves</button><button id="pause-home" class="text-button">Return to the meadows</button></div>`;
+  overlay.innerHTML = `<div class="result-card pause-card" role="dialog" aria-label="Paused game"><span class="eyebrow">A LITTLE BREATHER</span><h2>${escapeHtml(engine.level.name)}</h2><p>${engine.freedBees} of ${engine.totalBees} bee friends home · ${engine.shots} bubbles left</p><div class="pause-saved">✦ Your board and next bubbles are saved automatically.</div><button id="pause-continue" class="primary-button">Keep playing <span>➜</span></button><button id="pause-restart" class="secondary-button">Restart this level</button><div class="result-links"><button id="pause-rules" class="text-button">Rules</button><button id="pause-bag" class="text-button">Gifts ✿</button><button id="pause-sound" class="text-button">Sound ${save.muted ? 'off' : 'on'}</button></div>${engine.activity?.kind === 'challenge' && !engine.challengeRelaxed ? '<button id="pause-relax" class="secondary-button">Continue as normal · no medal</button>' : ''}<button id="pause-save" class="text-button">My Garden & saves</button><button id="pause-home" class="text-button">Return to the meadows</button></div>`;
   overlay.querySelector<HTMLButtonElement>('#pause-continue')!.addEventListener('click', backToLevel);
   overlay.querySelector<HTMLButtonElement>('#pause-restart')!.addEventListener('click', () => {
     if (engine.turns > 0) showRestartConfirm();
-    else beginLevel(scene.getLevelIndex(), true);
+    else restartCurrent();
   });
   overlay.querySelector<HTMLButtonElement>('#pause-rules')!.addEventListener('click', () => showRules(showPause));
   overlay.querySelector<HTMLButtonElement>('#pause-bag')!.addEventListener('click', () => showBag(showPause));
   overlay.querySelector<HTMLButtonElement>('#pause-sound')!.addEventListener('click', () => showAudio(showPause));
+  overlay.querySelector('#pause-relax')?.addEventListener('click', () => scene.relaxChallenge());
   overlay.querySelector('#pause-save')!.addEventListener('click', () => showMyGarden(showPause));
   overlay.querySelector<HTMLButtonElement>('#pause-home')!.addEventListener('click', showHome);
 }
 function showRestartConfirm(): void {
+  const activity = scene.engine?.activity;
   const index = scene.getLevelIndex();
   overlay.className = 'overlay result-overlay';
-  overlay.innerHTML = `<div class="result-card confirm-card" role="dialog" aria-label="Restart this level"><span class="eyebrow">START FRESH?</span><h2>Restart this meadow?</h2><p>Your current board will start over. Power-ups already fired stay spent.</p><button id="restart-keep" class="primary-button">Keep my attempt <span>➜</span></button><button id="restart-confirm" class="text-button">Restart level ${index + 1}</button></div>`;
+  overlay.innerHTML = `<div class="result-card confirm-card" role="dialog" aria-label="Restart this level"><span class="eyebrow">START FRESH?</span><h2>${activity?.kind === 'boss' ? 'Retry this phase?' : activity ? 'Restart this challenge?' : 'Restart this meadow?'}</h2><p>Your current board will start over. Power-ups already fired stay spent.${activity?.kind === 'boss' ? ' Earlier phases remain saved.' : ''}</p><button id="restart-keep" class="primary-button">Keep my attempt <span>➜</span></button><button id="restart-confirm" class="text-button">${activity?.kind === 'boss' ? 'Retry this phase' : activity ? 'Restart challenge' : `Restart level ${index + 1}`}</button></div>`;
   overlay.querySelector<HTMLButtonElement>('#restart-keep')!.addEventListener('click', showPause);
-  overlay.querySelector<HTMLButtonElement>('#restart-confirm')!.addEventListener('click', () => beginLevel(index, true));
+  overlay.querySelector<HTMLButtonElement>('#restart-confirm')!.addEventListener('click', restartCurrent);
 }
 function showSwitchLevelConfirm(index: number): void {
   const chapter = lastChapter;
@@ -843,7 +894,7 @@ function showRules(returnTo: () => void, focus?: RuleId): void {
   }).join('');
   const lesson = scene.engine?.level.tutorial;
   overlay.className = 'overlay sheet-overlay';
-  overlay.innerHTML = `<section class="sheet rules-sheet" role="dialog" aria-label="Bubble rules"><div class="sheet-top"><span class="eyebrow">BRAMBLE'S FIELD GUIDE</span><button class="sheet-close" id="rules-close" aria-label="Close rules">×</button></div><h2>Bubble rules</h2><p class="sheet-lead">Open this any time. Your level waits right where you left it.</p><div class="sheet-scroll">${current.length ? `<h3>On this board</h3>${render(current)}` : ''}<h3>${current.length ? 'Other bubbles and tricks' : 'All bubbles and tricks'}</h3>${render(remaining)}<h3>Bloom shot · earned in play</h3><p class="rule-footnote">From level 7 on new attempts, clear 12 bubbles to grow Bloom. Tap its flower beside the launcher, then hit a colored bubble: it bursts that bubble and its colored neighbors. Honeycomb stays; dew cracks. Bloom uses one shot, never gift stock, and cannot charge itself. Keep a ready Bloom for the right moment.</p><h3>Mabel’s flight path</h3><p class="rule-footnote">On path meadows, clear the dotted route from the bottom up. Mabel moves after each shot and stops before blocked spaces. Bring her to the little hive and rescue any other bees to finish.</p><h3>Little keepsakes</h3><p class="rule-footnote">Garden craft: finish without gifts, wild assistance or top-ups (earned Bloom is welcome). Lovely cascade: drop 8 bubbles in one shot. Around the bend: rescue a bubbled bee with a bank shot. Keepsakes are optional and never affect your stars or unlocks.</p><h3>Power-up shots</h3>${boosters.map((booster) => `<article class="rule-card"><span class="rule-symbol">${booster.symbol}</span><div><strong>${escapeHtml(booster.name)}</strong><p>${escapeHtml(booster.id === 'rainbow' && scene.engine?.rulesVersion === 1 ? 'This saved attempt keeps its original chosen-color Rainbow. New attempts use the color burst.' : booster.description)} Uses one regular shot.</p><small>Available by level ${booster.unlockLevel}</small></div></article>`).join('')}<p class="rule-footnote">If bubbles run out, take five more for free. Stars count every shot. After two losses, a free chosen-color shot helps on retries.</p></div><div class="sheet-actions">${scene.engine && !scene.engine.won && !scene.engine.lost ? '<button id="inspect-start" class="secondary-button">Inspect bubbles on this board</button>' : ''}${lesson ? '<button id="replay-lesson" class="text-button">Replay this level’s lesson</button>' : ''}</div></section>`;
+  overlay.innerHTML = `<section class="sheet rules-sheet" role="dialog" aria-label="Bubble rules"><div class="sheet-top"><span class="eyebrow">BRAMBLE'S FIELD GUIDE</span><button class="sheet-close" id="rules-close" aria-label="Close rules">×</button></div><h2>Bubble rules</h2><p class="sheet-lead">Open this any time. Your level waits right where you left it.</p><div class="sheet-scroll">${current.length ? `<h3>On this board</h3>${render(current)}` : ''}<h3>${current.length ? 'Other bubbles and tricks' : 'All bubbles and tricks'}</h3>${render(remaining)}<h3>Bloom shot · earned in play</h3><p class="rule-footnote">From level 9 on new attempts, clear 12 bubbles to grow Bloom. Tap its flower beside the launcher, then hit a colored bubble: it bursts that bubble and its colored neighbors. Honeycomb stays; dew cracks. Bloom uses one shot, never gift stock, and cannot charge itself. Keep a ready Bloom for the right moment.</p><h3>Mabel’s flight path</h3><p class="rule-footnote">On path meadows, clear the dotted route from the bottom up. Mabel moves after each shot and stops before blocked spaces. Bring her to the little hive and rescue any other bees to finish.</p><h3>Little keepsakes</h3><p class="rule-footnote">Garden craft: finish without gifts, wild assistance or top-ups (earned Bloom is welcome). Lovely cascade: drop 8 bubbles in one shot. Around the bend: rescue a bubbled bee with a bank shot. Keepsakes are optional and never affect your stars or unlocks.</p><h3>Power-up shots</h3>${boosters.map((booster) => `<article class="rule-card"><span class="rule-symbol">${booster.symbol}</span><div><strong>${escapeHtml(booster.name)}</strong><p>${escapeHtml(booster.id === 'rainbow' && scene.engine?.rulesVersion === 1 ? 'This saved attempt keeps its original chosen-color Rainbow. New attempts use the color burst.' : booster.description)} Uses one regular shot.</p><small>Available by level ${booster.unlockLevel}</small></div></article>`).join('')}<p class="rule-footnote">If bubbles run out, take five more for free. Stars count every shot. After two losses, a free chosen-color shot helps on retries.</p></div><div class="sheet-actions">${scene.engine && !scene.engine.won && !scene.engine.lost ? '<button id="inspect-start" class="secondary-button">Inspect bubbles on this board</button>' : ''}${lesson ? '<button id="replay-lesson" class="text-button">Replay this level’s lesson</button>' : ''}</div></section>`;
   overlay.querySelector<HTMLButtonElement>('#rules-close')!.addEventListener('click', returnTo);
   overlay.querySelector<HTMLButtonElement>('#inspect-start')?.addEventListener('click', () => {
     scene.setInspectMode(true);
@@ -882,7 +933,7 @@ function showColorPicker(kind: 'rainbow' | 'wild', returnTo: () => void): void {
 function showBag(returnTo: () => void): void {
   if (scene.deferUntilReady(() => showBag(returnTo))) return;
   const engine = scene.engine;
-  const playing = Boolean(engine && !engine.won && !engine.lost && !engine.awaitingTopUp);
+  const playing = Boolean(engine && engine.giftsAllowed && !engine.won && !engine.lost && !engine.awaitingTopUp);
   const cards = boosters.map((booster) => {
     const unlocked = save.unlocked >= booster.unlockLevel;
     const legacy = booster.id === 'rainbow' && engine?.rulesVersion === 1;
@@ -891,7 +942,7 @@ function showBag(returnTo: () => void): void {
   const wild = playing && (save.failures[scene.getLevelIndex()] || 0) >= 2 && !engine!.wildUsed
     ? `<article class="booster-card wild-card"><span class="booster-symbol">✦</span><div class="booster-description"><strong>Bramble's wild shot</strong><p>One free chosen-color shot on this retry. It does not use a regular bubble.</p></div><div class="booster-actions"><button id="use-wild">Use</button></div></article>` : '';
   overlay.className = 'overlay sheet-overlay';
-  overlay.innerHTML = `<section class="sheet gifts-sheet" role="dialog" aria-label="Gifts"><div class="sheet-top"><span class="eyebrow">A LITTLE HELP, WITH LOVE</span><button class="sheet-close" id="bag-close" aria-label="Close gifts">×</button></div><h2>Bramble’s Very Serious Emporium</h2><p class="sheet-lead">Everything is free. Our accountant is a bee.</p><div class="sheet-scroll">${save.convertedHearts ? `<p class="pause-saved">Your ${save.convertedHearts} Honey Hearts became ${Math.ceil(save.convertedHearts / 3)} Rainbow Pops. Your old gifts are still here.</p>` : ''}<div class="emporium-proprietor"><img src="${BASE}bramble.svg" alt="Bramble, proprietor"><p>“Welcome. Please browse irresponsibly.”<small>Returns accepted in the form of imaginary hugs.</small></p></div>${cards}${wild}<h3>A little change of scenery</h3><p class="rule-footnote">Permanent garden colors, earned by clearing meadows. Pick any you have unlocked; change your mind any time.</p>${styleChoices(save)}<div class="refill-card"><strong>There’s always a little more</strong><p>Refill every unlocked gift to at least three. Come back any time.</p><button id="refill-gifts" class="secondary-button">Refill my gifts · free</button></div><p class="rule-footnote">First clears give one of each unlocked gift. Each gift uses a regular shot and is spent only when fired. Cancel before firing to keep it.</p></div></section>`;
+  overlay.innerHTML = `<section class="sheet gifts-sheet" role="dialog" aria-label="Gifts"><div class="sheet-top"><span class="eyebrow">A LITTLE HELP, WITH LOVE</span><button class="sheet-close" id="bag-close" aria-label="Close gifts">×</button></div><h2>Bramble’s Very Serious Emporium</h2><p class="sheet-lead">Everything is free. Our accountant is a bee.</p><div class="sheet-scroll">${engine && !engine.giftsAllowed ? '<p class="pause-saved">Travel Light leaves gifts packed away. Pause and choose Continue as normal to use them on this board without earning a medal.</p>' : ''}${save.convertedHearts ? `<p class="pause-saved">Your ${save.convertedHearts} Honey Hearts became ${Math.ceil(save.convertedHearts / 3)} Rainbow Pops. Your old gifts are still here.</p>` : ''}<div class="emporium-proprietor"><img src="${BASE}bramble.svg" alt="Bramble, proprietor"><p>“Welcome. Please browse irresponsibly.”<small>Returns accepted in the form of imaginary hugs.</small></p></div>${cards}${wild}<h3>A little change of scenery</h3><p class="rule-footnote">Permanent garden colors, earned by clearing meadows. Pick any you have unlocked; change your mind any time.</p>${styleChoices(save)}<div class="refill-card"><strong>There’s always a little more</strong><p>Refill every unlocked gift to at least three. Come back any time.</p><button id="refill-gifts" class="secondary-button">Refill my gifts · free</button></div><p class="rule-footnote">First clears give one of each unlocked gift. Each gift uses a regular shot and is spent only when fired. Cancel before firing to keep it.</p></div></section>`;
   overlay.querySelector<HTMLButtonElement>('#bag-close')!.addEventListener('click', () => { save.convertedHearts = 0; storeSave(save); returnTo(); });
   bindGardenStyles(() => showBag(returnTo));
   overlay.querySelector<HTMLButtonElement>('#refill-gifts')!.addEventListener('click', () => { refillGifts(save); storeSave(save); if (engine) updateHud(scene); showBag(returnTo); notice('A few little gifts, just for you.'); });
@@ -904,6 +955,14 @@ function showBag(returnTo: () => void): void {
 }
 
 function showTopUp(): void {
+  if (scene.engine && !scene.engine.refillsAllowed) {
+    overlay.className = 'overlay result-overlay';
+    overlay.innerHTML = `<section class="result-card" role="dialog" aria-label="Challenge allowance used"><span class="eyebrow">A LITTLE CHOICE</span><h2>Out of challenge shots</h2><p>Retry for the medal, or keep this board and continue with normal rules and five free bubbles. Your main meadow is safe.</p><button id="challenge-retry" class="primary-button">Retry challenge</button><button id="challenge-relax" class="secondary-button">Continue as normal · no medal</button><button id="challenge-save" class="text-button">Save & return home</button></section>`;
+    overlay.querySelector('#challenge-retry')!.addEventListener('click', restartCurrent);
+    overlay.querySelector('#challenge-relax')!.addEventListener('click', () => scene.relaxChallenge());
+    overlay.querySelector('#challenge-save')!.addEventListener('click', showHome);
+    return;
+  }
   if (!scene.engine?.awaitingTopUp) return;
   overlay.className = 'overlay result-overlay';
   overlay.innerHTML = `<section class="result-card" role="dialog" aria-label="More bubbles"><span class="eyebrow">TAKE YOUR TIME</span><h2>A few more bubbles?</h2><p>Your bee friends are still here. Let’s bring them home.</p><button id="topup" class="primary-button">Five more bubbles · free <span>＋</span></button><p class="rule-footnote">Stars count every shot, including extra bubbles. Finishing is what matters.</p><button id="topup-retry" class="secondary-button">Restart this meadow</button><button id="topup-home" class="text-button">Save & return home</button></section>`;
@@ -954,7 +1013,7 @@ function showGarden(returnTo: () => void): void {
   const progress = gardenProgress(save.stars);
   const friendCards = friendsCards(save.stars);
   overlay.className = 'overlay garden-overlay';
-  overlay.innerHTML = `<section class="garden-page" role="dialog" aria-label="Bee Garden"><div class="sheet-top"><span class="eyebrow">A HOME FOR LITTLE FRIENDS</span><button id="garden-close" class="sheet-close" aria-label="Close garden">×</button></div><h2>Your bee garden</h2><p>${progress.flowers ? 'Look what your kindness has grown.' : 'Every rescue begins with a little kindness.'}</p>${gardenArt(save.stars, save.gardenStyle)}<div class="garden-progress"><strong>${progress.flowers} / 30 meadows blooming</strong><span>${progress.decorations} decorations · ${progress.hive} hive improvements</span></div><p class="garden-note">${progress.flowers === 30 ? 'All home together. A whole garden full of love.' : `A flower for each meadow. Your next decoration arrives at ${Math.min(30, (progress.decorations + 1) * 5)} clears.`}</p><h3>Make yourself at home</h3>${styleChoices(save)}${friendCards ? `<h3>Your little friends</h3>${friendCards}` : ''}<h3>Little keepsakes</h3><p>Garden craft: ${save.records.filter(r => r?.unaided).length} · Lovely cascade: ${save.records.filter(r => r?.cascade).length} · Around the bend: ${save.records.filter(r => r?.bank).length}</p><p class="garden-note">Optional memories of clever shots. See Rules for how to earn them. Your flowers and stars are always yours.</p><button id="garden-back" class="primary-button">${scene.engine?.won ? 'Back to celebration' : 'Back to the meadows'} <span>➜</span></button></section>`;
+  overlay.innerHTML = `<section class="garden-page" role="dialog" aria-label="Bee Garden"><div class="sheet-top"><span class="eyebrow">A HOME FOR LITTLE FRIENDS</span><button id="garden-close" class="sheet-close" aria-label="Close garden">×</button></div><h2>Your bee garden</h2><p>${progress.flowers ? 'Look what your kindness has grown.' : 'Every rescue begins with a little kindness.'}</p>${gardenArt(save.stars, save.gardenStyle)}<div class="garden-progress"><strong>${progress.flowers} / 30 meadows blooming</strong><span>${progress.decorations} decorations · ${progress.hive} hive improvements</span></div><p class="garden-note">${progress.flowers === 30 ? 'All home together. A whole garden full of love.' : `A flower for each meadow. Your next decoration arrives at ${Math.min(30, (progress.decorations + 1) * 5)} clears.`}</p><h3>Make yourself at home</h3>${styleChoices(save)}${friendCards ? `<h3>Your little friends</h3>${friendCards}` : ''}<h3>Side adventure keepsakes</h3><p>${save.medals.length}/6 challenge medals${save.bossCleared ? ' · Picnic recovered ✦' : ''}${save.rematchCleared ? ' · Monty’s rematch ✦' : ''}</p><h3>Little keepsakes</h3><p>Garden craft: ${save.records.filter(r => r?.unaided).length} · Lovely cascade: ${save.records.filter(r => r?.cascade).length} · Around the bend: ${save.records.filter(r => r?.bank).length}</p><p class="garden-note">Optional memories of clever shots. See Rules for how to earn them. Your flowers and stars are always yours.</p><button id="garden-back" class="primary-button">${scene.engine?.won ? 'Back to celebration' : 'Back to the meadows'} <span>➜</span></button></section>`;
   bindGardenStyles(() => showGarden(returnTo));
   overlay.querySelector('#garden-close')!.addEventListener('click', returnTo);
   overlay.querySelector('#garden-back')!.addEventListener('click', returnTo);
@@ -962,6 +1021,37 @@ function showGarden(returnTo: () => void): void {
 
 document.querySelector('#bloom-shot')!.addEventListener('click', () => scene.armBloom());
 scene.onInspect = showInspectedRule;
+function restartCurrent(): void {
+  if (scene.engine?.activity) launchActivity(scene.engine.activity);
+  else beginLevel(scene.getLevelIndex(), true);
+}
+function launchActivity(activity: Activity): void {
+  if (!activityUnlocked(activity, save.stars)) return;
+  const level = activityLevel(activity);
+  overlay.classList.add('hidden'); hud.classList.remove('hidden');
+  scene.startLevel(level.id - 1, { engine: new GameEngine(level, 4, activity), actions: [] });
+}
+function resumeSideActivity(): void {
+  const restored = restoreActiveRun(save.activeSideRun, levels, save.unlocked);
+  if (!restored?.engine.activity || !activityUnlocked(restored.engine.activity, save.stars)) { delete save.activeSideRun; storeSave(save); showSideActivities(); return; }
+  overlay.classList.add('hidden'); hud.classList.remove('hidden');
+  scene.startLevel(restored.engine.level.id - 1, restored);
+}
+function showSideActivities(): void {
+  scene.returnHome(); hud.classList.add('hidden');
+  const start = (activity: Activity): void => {
+    if (!activityUnlocked(activity, save.stars)) return;
+    if (save.activeSideRun && JSON.stringify(save.activeSideRun.activity) === JSON.stringify(activity)) { resumeSideActivity(); return; }
+    const intro = () => showActivityIntro(activity, overlay, () => launchActivity(activity), showSideActivities);
+    if (save.activeSideRun?.actions.length) {
+      overlay.className = 'overlay result-overlay';
+      overlay.innerHTML = `<section class="result-card"><h2>Start another side adventure?</h2><p>This replaces your unfinished side board. Your main meadow and boss checkpoints stay saved.</p><button id="side-keep" class="primary-button">Keep my side adventure</button><button id="side-replace" class="secondary-button">Choose this adventure</button></section>`;
+      overlay.querySelector('#side-keep')!.addEventListener('click', resumeSideActivity);
+      overlay.querySelector('#side-replace')!.addEventListener('click', intro);
+    } else intro();
+  };
+  showActivityMenu(save, overlay, { home: showHome, start, resume: resumeSideActivity });
+}
 function beginLevel(index: number, fresh = false): void {
   const restored = !fresh && save.activeRun?.levelId === levels[index].id
     ? restoreActiveRun(save.activeRun, levels, save.unlocked) ?? undefined : undefined;
@@ -970,17 +1060,17 @@ function beginLevel(index: number, fresh = false): void {
   scene.startLevel(index, restored);
   if (scene.engine?.awaitingTopUp) { showTopUp(); return; }
   const tutorial = scene.engine?.level.tutorial;
-  const lessonKey = scene.engine?.rulesVersion === 3 ? `edition3:${index}` : String(index);
+  const lessonKey = scene.engine && scene.engine.rulesVersion >= 3 ? `edition${scene.engine.rulesVersion}:${index}` : String(index);
   if (tutorial && !save.tutorialsSeen.includes(lessonKey)) {
-    showGuide('A NEW LITTLE TRICK', levels[index].name, tutorial, () => {
+    showGuide('A NEW LITTLE TRICK', scene.engine!.level.name, tutorial, () => {
       save.tutorialsSeen.push(lessonKey);
       storeSave(save);
-    }, [1, 4, 7].includes(index));
+    }, [6, 7].includes(index));
   }
 }
 function showGuide(label: string, title: string, message: string, after?: () => void, bagPrompt = false): void {
   overlay.className = 'overlay result-overlay';
-  overlay.innerHTML = `<div class="result-card guide-card"><span class="eyebrow">${escapeHtml(label)}</span><h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p><p class="guide-reminder">Tap <strong>Rules</strong> or a bubble label any time to see what it does.</p><button id="guide-close" class="primary-button">Got it <span>➜</span></button>${bagPrompt ? '<button id="guide-bag" class="secondary-button">Show me my gifts ✿</button>' : ''}</div>`;
+  overlay.innerHTML = `<div class="result-card guide-card"><span class="eyebrow">${escapeHtml(label)}</span><h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p><p class="guide-reminder">Try it at your own pace. Rules explains each bubble; Hint can help with the board in front of you.</p><button id="guide-close" class="primary-button">Got it <span>➜</span></button>${bagPrompt ? '<button id="guide-bag" class="secondary-button">Show me my gifts ✿</button>' : ''}</div>`;
   overlay.querySelector<HTMLButtonElement>('#guide-close')!.addEventListener('click', () => { overlay.classList.add('hidden'); after?.(); });
   overlay.querySelector<HTMLButtonElement>('#guide-bag')?.addEventListener('click', () => { after?.(); showBag(backToLevel); });
 }
@@ -1000,10 +1090,11 @@ function showHome(): void {
   const progress = Math.round(complete / levels.length * 100);
   overlay.innerHTML = `<div class="home-header"><span class="eyebrow">A LITTLE ADVENTURE FOR YOU</span><h1>Bramble’s<br><em>Bubble Rescue</em></h1><p>Pop bubbles. Free little friends. Make someone smile.</p></div>
     <img class="hero-art" src="${BASE}bramble.svg" alt="Bramble the friendly honey badger" />
-    <div class="home-panel"><div class="dedication">${escapeHtml(gameContent.opening)}</div><button id="primary-play" class="primary-button">${pausedIndex !== undefined ? `Resume · Level ${next + 1}` : complete === levels.length ? 'Play again' : `Continue · Level ${next + 1}`} <span>➜</span></button>${pausedIndex !== undefined ? '<div class="paused-note">Your in-progress meadow is right where you left it.</div>' : ''}<button id="choose-level" class="secondary-button">Choose a level</button><div class="home-quick-actions"><button id="home-garden">My Garden</button><button id="home-bag">Gifts</button><button id="home-audio">Sound</button><button id="home-rules">Rules</button></div><div class="journey-progress">${complete} of 30 meadows complete</div><div class="progress-track" role="progressbar" aria-valuenow="${complete}" aria-valuemin="0" aria-valuemax="30" aria-label="Meadows complete"><span style="width:${progress}%"></span></div></div>
+    <div class="home-panel"><div class="dedication">${escapeHtml(gameContent.opening)}</div><button id="primary-play" class="primary-button">${pausedIndex !== undefined ? `Resume · Level ${next + 1}` : complete === levels.length ? 'Play again' : `Continue · Level ${next + 1}`} <span>➜</span></button>${pausedIndex !== undefined ? '<div class="paused-note">Your in-progress meadow is right where you left it.</div>' : ''}<button id="choose-level" class="secondary-button">Choose a level</button><button id="home-adventures" class="secondary-button adventure-link">${save.activeSideRun ? 'Resume side adventure' : 'Side adventures · challenges & boss'}</button><div class="home-quick-actions"><button id="home-garden">My Garden</button><button id="home-bag">Gifts</button><button id="home-audio">Sound</button><button id="home-rules">Rules</button></div><div class="journey-progress">${complete} of 30 meadows complete</div><div class="progress-track" role="progressbar" aria-valuenow="${complete}" aria-valuemin="0" aria-valuemax="30" aria-label="Meadows complete"><span style="width:${progress}%"></span></div></div>
     <div class="home-footer">A cosy little game · No timers, just bubbles</div>`;
   overlay.querySelector<HTMLButtonElement>('#primary-play')!.addEventListener('click', () => beginLevel(next));
   overlay.querySelector<HTMLButtonElement>('#choose-level')!.addEventListener('click', () => showChapterSelect(Math.floor(next / 10)));
+  overlay.querySelector('#home-adventures')!.addEventListener('click', showSideActivities);
   overlay.querySelector('#home-garden')!.addEventListener('click', () => showMyGarden(showHome));
   overlay.querySelector('#home-audio')!.addEventListener('click', () => showAudio(showHome));
   overlay.querySelector<HTMLButtonElement>('#home-rules')!.addEventListener('click', () => showRules(showHome));
@@ -1035,6 +1126,11 @@ function showChapterSelect(chapterIndex: number): void {
   overlay.querySelector<HTMLButtonElement>('#chapter-bag')!.addEventListener('click', () => showBag(() => showChapterSelect(lastChapter)));
 }
 function showResult(won: boolean, index: number, stars: number, firstClear = false): void {
+  if (scene.engine?.activity) {
+    hud.classList.add('hidden');
+    showActivityResult(scene.engine, overlay, { start: a => showActivityIntro(a, overlay, () => launchActivity(a), showSideActivities), menu: showSideActivities, gifts: showBag });
+    return;
+  }
   hud.classList.add('hidden');
   overlay.className = 'overlay result-overlay';
   const finale = won && index === levels.length - 1;
@@ -1045,9 +1141,10 @@ function showResult(won: boolean, index: number, stars: number, firstClear = fal
   const message = finale ? gameContent.ending : chapterEnd ? `You finished ${chapters[Math.floor(index / 10)].name}. Bramble has another place to explore!` : won ? `You freed every bee in ${levels[index].name}.` : losses > 1 ? teasing[(losses - 2) % teasing.length] : 'Bramble believes in you. Take another shot at it!';
   const assist = !won && losses >= 2 ? '<p class="assist-note">A hint and one free wild shot are ready on your next try.</p>' : '';
   const reward = won && firstClear ? '<p class="reward-note">✿ A new garden flower and a gift of each unlocked power-up!</p>' : '';
-  overlay.innerHTML = `<div class="result-card ${won ? 'win-card' : 'retry-card'}"><span class="eyebrow">${won ? 'BEE FRIENDS RESCUED' : 'THE ADVENTURE CONTINUES'}</span><div class="result-art"><img src="${BASE}${won ? 'bee.svg' : 'bramble.svg'}" alt="" /></div><h2>${escapeHtml(title)}</h2><div class="stars" aria-label="${stars} stars">${won ? Array.from({ length: 3 }, (_, i) => `<span class="result-star ${i < stars ? 'earned' : ''}" style="--star-delay:${i * 100}ms">${i < stars ? '★' : '☆'}</span>`).join('') : '✿ ✿ ✿'}</div><p>${escapeHtml(message)}</p>${assist}${reward}${won ? `<div class="mastery-keepsakes">${masteryLabels(save.records[index]).map(label => `<span>${label}</span>`).join('')}</div>${firstClear ? friends.filter(f => f.clears === save.stars.filter(Boolean).length).map(f => `<p class="friend-arrival">${f.hat} <strong>${escapeHtml(f.name)} has moved into your garden!</strong><br><small>${escapeHtml(f.title)} · ${escapeHtml(f.description)}</small></p>`).join('') : ''}` : ''}<button id="result-primary" class="primary-button">${won ? finale ? 'Play from the beginning' : 'Next meadow' : 'Try again'} <span>➜</span></button><button id="result-bag" class="secondary-button">Gifts ✿</button><div class="result-links"><button id="result-garden" class="text-button">Bee Garden</button><button id="result-rules" class="text-button">Bubble rules</button><button id="result-menu" class="text-button">Choose a level</button></div></div>`;
+  overlay.innerHTML = `<div class="result-card ${won ? 'win-card' : 'retry-card'}"><span class="eyebrow">${won ? 'BEE FRIENDS RESCUED' : 'THE ADVENTURE CONTINUES'}</span><div class="result-art"><img src="${BASE}${won ? 'bee.svg' : 'bramble.svg'}" alt="" /></div><h2>${escapeHtml(title)}</h2><div class="stars" aria-label="${stars} stars">${won ? Array.from({ length: 3 }, (_, i) => `<span class="result-star ${i < stars ? 'earned' : ''}" style="--star-delay:${i * 100}ms">${i < stars ? '★' : '☆'}</span>`).join('') : '✿ ✿ ✿'}</div><p>${escapeHtml(message)}</p>${assist}${reward}${won ? `<div class="mastery-keepsakes">${masteryLabels(save.records[index]).map(label => `<span>${label}</span>`).join('')}</div>${firstClear ? friends.filter(f => f.clears === save.stars.filter(Boolean).length).map(f => `<p class="friend-arrival">${f.hat} <strong>${escapeHtml(f.name)} has moved into your garden!</strong><br><small>${escapeHtml(f.title)} · ${escapeHtml(f.description)}</small></p>`).join('') : ''}` : ''}<button id="result-primary" class="primary-button">${won ? finale ? 'Play from the beginning' : 'Next meadow' : 'Try again'} <span>➜</span></button>${won && (index === 19 || index === 29) ? '<button id="result-adventures" class="secondary-button">Meet Monty · side adventures</button>' : ''}<button id="result-bag" class="secondary-button">Gifts ✿</button><div class="result-links"><button id="result-garden" class="text-button">Bee Garden</button><button id="result-rules" class="text-button">Bubble rules</button><button id="result-menu" class="text-button">Choose a level</button></div></div>`;
   overlay.querySelector<HTMLButtonElement>('#result-primary')!.addEventListener('click', () => beginLevel(won ? (index + 1) % levels.length : index));
   overlay.querySelector<HTMLButtonElement>('#result-menu')!.addEventListener('click', () => showChapterSelect(Math.floor(index / 10)));
+  overlay.querySelector('#result-adventures')?.addEventListener('click', showSideActivities);
   overlay.querySelector<HTMLButtonElement>('#result-bag')!.addEventListener('click', () => showBag(() => showResult(won, index, stars, false)));
   overlay.querySelector('#result-garden')!.addEventListener('click', () => showGarden(() => showResult(won, index, stars, false)));
   overlay.querySelector<HTMLButtonElement>('#result-rules')!.addEventListener('click', () => showRules(() => showResult(won, index, stars, false)));
@@ -1064,9 +1161,32 @@ mechanicStatus.addEventListener('click', (event) => {
   if (target.dataset.rule) showRules(backToLevel, target.dataset.rule as RuleId);
   else if (target.dataset.cancelSpecial) scene.cancelSpecial();
 });
+function showContextHint(): void {
+  const engine = scene.engine;
+  if (!engine) return;
+  showGuide('BRAMBLE’S HINT', engine.level.name, engine.level.hint);
+  if (engine.guideHidden) return;
+  const button = document.createElement('button');
+  button.className = 'secondary-button'; button.textContent = 'Help with this board';
+  button.addEventListener('click', () => {
+    const suggestion = suggestShot(engine);
+    showGuide('ONE LITTLE IDEA', engine.level.name, suggestion?.message ?? 'Take five more bubbles to continue, or open Gifts for a free refill.');
+    if (suggestion && suggestion.score > 0) {
+      const aim = document.createElement('button'); aim.className = 'secondary-button';
+      aim.textContent = suggestion.swap ? 'Swap & show this aim' : 'Show this aim';
+      aim.addEventListener('click', () => {
+        overlay.classList.add('hidden');
+        scene.showSuggestedAim(suggestion.angle, suggestion.swap);
+      });
+      overlay.querySelector('.guide-card')!.append(aim);
+    }
+  });
+  overlay.querySelector('.guide-card')!.append(button);
+}
 document.querySelector<HTMLButtonElement>('#help-button')!.addEventListener('click', () => {
   if (!scene.engine) return;
-  showGuide('BRAMBLE’S HINT', levels[scene.getLevelIndex()].name, levels[scene.getLevelIndex()].hint);
+  if (scene.deferUntilReady(showContextHint)) return;
+  showContextHint();
 });
 muteButton.addEventListener('click', () => { if (!scene.deferUntilReady(() => showAudio(backToLevel))) showAudio(backToLevel); });
 document.querySelector('#quick-boosters')!.addEventListener('click', (event) => {

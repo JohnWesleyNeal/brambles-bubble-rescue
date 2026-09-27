@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BubbleBoard } from './board';
 import { GameEngine } from './engine';
-import { levels } from './levels';
+import { levels, legacyLevels } from './levels';
 import { restoreActiveRun, type RunAction } from './run';
 
 describe('Rainbow burst', () => {
@@ -52,7 +52,7 @@ describe('free bubble top-ups and run compatibility', () => {
     expect(engine.awaitingTopUp).toBe(true);
     expect(engine.lost).toBe(false);
     expect(engine.canFire(0)).toBe(false);
-    let restored = restoreActiveRun({ version: 3, levelId: 1, actions }, [level], 1)!;
+    let restored = restoreActiveRun({ version: 4, levelId: 1, actions }, [level], 1)!;
     expect(restored.engine.awaitingTopUp).toBe(true);
     expect(restored.engine.board.entries()).toEqual(engine.board.entries());
     const queue = [engine.currentColor, engine.nextColor];
@@ -63,7 +63,7 @@ describe('free bubble top-ups and run compatibility', () => {
     for (const angle of [-1.2, 1.2, -1, 1, 0]) { engine.fire(angle); actions.push({ type: 'fire', angle }); }
     expect(engine.awaitingTopUp).toBe(true);
     expect(engine.topUp()).toBe(true); actions.push({ type: 'topup' });
-    restored = restoreActiveRun({ version: 3, levelId: 1, actions }, [level], 1)!;
+    restored = restoreActiveRun({ version: 4, levelId: 1, actions }, [level], 1)!;
     expect(restored.engine.shots).toBe(5);
     expect(restored.engine.turns).toBe(6);
     expect(restored.engine.board.entries()).toEqual(engine.board.entries());
@@ -86,7 +86,7 @@ describe('free bubble top-ups and run compatibility', () => {
     expect(engine.topUp()).toBe(false);
   });
   it('legacy fired Rainbow reconstructs the original board and stays on legacy rules', () => {
-    const engine = new GameEngine(levels[7], 1);
+    const engine = new GameEngine(legacyLevels[7], 1);
     engine.armBooster('rainbow', 'R'); engine.fire(-1.1);
     const restored = restoreActiveRun({ version: 1, levelId: 8, actions: [{ type: 'booster', id: 'rainbow', color: 'R' }, { type: 'fire', angle: -1.1 }] }, levels, 8)!;
     expect(restored.engine.rulesVersion).toBe(1);

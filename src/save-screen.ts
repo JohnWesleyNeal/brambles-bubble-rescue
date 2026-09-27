@@ -4,7 +4,7 @@ import { gardenProgress, lastSaveSucceeded, storeSave, type JourneyData, type Sa
 import { exportJourney, freshJourney, importJourney, replaceJourney } from './save-management';
 
 const escape = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-const summary = (save: JourneyData): string => `${save.stars.filter(Boolean).length} of ${levels.length} meadows · ${save.stars.reduce((sum, n) => sum + n, 0)} stars${save.activeRun ? ` · Level ${save.activeRun.levelId} paused` : ''}`;
+const summary = (save: JourneyData): string => `${save.stars.filter(Boolean).length} of ${levels.length} meadows · ${save.stars.reduce((sum, n) => sum + n, 0)} stars${save.activeRun ? ` · Level ${save.activeRun.levelId} paused` : ''}${save.activeSideRun ? ' · Side adventure paused' : ''}`;
 const date = (time: number): string => time ? new Date(time).toLocaleString() : 'Earlier journey';
 
 export function showSaveScreen(save: SaveData, overlay: HTMLElement, actions: { close: () => void; garden: () => void; levels: () => void; applied: () => void }): void {

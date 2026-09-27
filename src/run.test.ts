@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GameEngine } from './engine';
-import { levels } from './levels';
+import { legacyLevels as levels } from './levels';
 import { restoreActiveRun, type ActiveRun } from './run';
 
 describe('paused level', () => {
