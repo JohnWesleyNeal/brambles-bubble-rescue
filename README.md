@@ -12,7 +12,7 @@ The revised campaign teaches swapping at 2, drops at 3 with practice at 4, polle
 
 ## A little more cosy
 
-**Rainbow Pop** fires a multicolored bubble and bursts the connected color group it hits, even a single bubble. The aim guide highlights that group. Dew cracks instead of being directly destroyed, honeycomb blocks the shot, and empty targets cannot consume it. **Double Pop** clears a pair of the current color; **Bonk** removes the first tile it hits. The three buttons beside the launcher show your stock and equipped state. Tap an equipped gift again to cancel it. Each gift spends one regular shot and one stock only on firing.
+**Rainbow Pop** bursts the connected color group it hits. **Double Pop** clears a pair of the current color. **Bonk** removes its target, including honeycomb, and cracks adjacent dew on new attempts. The buttons beside the launcher show stock and equipped state. Tap again to cancel. Gifts spend one shot and one stock only when fired.
 
 **Bramble’s Very Serious Emporium**, opened through Gifts, provides free help with a suitably unserious proprietor. First clears award one of every unlocked gift; the free refill raises each unlocked stock to at least three without reducing larger inventories. Existing stock carries forward, and old Honey Hearts convert once into Rainbow Pops at three hearts per bubble, rounded up. The free chosen-color retry assist remains separate.
 
@@ -24,7 +24,7 @@ Rescued bees flutter toward the hive counter; their progress saves immediately, 
 
 **Sound** has separate remembered music and effects volumes. Music begins only after interaction and pauses when the app is hidden. The bundled soundtrack, *Sunset Walk* by KiluaBoy, is shared under CC0; see `public/audio/CREDITS.txt` and the in-game credit. Music works offline after the first complete cache download.
 
-Save version 4 migrates previous journeys and now includes garden colors and optional keepsakes. New attempts use run version 4, with earned Bloom and flight-path objectives. Run versions 1 and 2 reconstruct their frozen layouts from `legacyLevels`; version 3 reconstructs the previous campaign from `levels-v3.ts`; version 2 supports the Rainbow burst and top-up action. Existing version-1 attempts keep their original rules (including chosen-color Rainbow and shot-limit losses) until completed or restarted, so replaying their saved actions restores the same board and queue.
+Save format 4 retains previous journeys. New attempts use run edition 5, which adds precise bubble collision, Bonk's dew shock, and revised boss phases. Run editions 1–4 retain their original collision and layouts when their recorded actions replay. An unfinished attempt keeps its rules until completed or restarted.
 
 ## My Garden and backups
 
@@ -78,7 +78,9 @@ Existing stars and gardens stay intact. To experience all revised lessons in ord
 
 Open **Side adventures · challenges & boss** from home. Six curated challenges unlock after clearing their meadow: Trust Your Paw (3 and 12; short aiming stem only, no trajectory/landing/match preview or computed hints), Around the Bend (6 and 21; rescue 2 or 4 bees with bank shots), Travel Light (9; no gifts, wild shots or refills, earned Bloom allowed), and Perfect Picnic (10; five total shots, including wilds, with no extension from pollen or refills). Medal progress is separate from stars. Pause and choose **Continue as normal · no medal** to retain the current board while removing challenge restrictions. Exhausted restricted challenges offer the same choice with five free bubbles.
 
-**The Great Picnic Heist** unlocks after all first 20 meadows are cleared. Monty the magpie guards a borrowed basket: release both clasp bees, outsmart a shifting honeycomb screen, then clear Mabel’s route home. Each phase has its own briefing, character reaction and saved checkpoint. Gifts and extra bubbles remain free; overflow retries only the current phase. **Monty’s Revenge**, unlocked after all 30 clears, adds protected clasps, the more demanding reunion board, and a different flight route. Each completion earns a picnic keepsake visible in the Bee Garden.
+**The Great Picnic Heist** unlocks after 20 meadows. Crack the two protected clasp bees, outplay Monty's shifting screen, then clear Mabel's route through a changing-color gate. Bonk can stall one screen shift. Each phase has a short animated briefing and its own saved checkpoint. **Monty’s Revenge** unlocks after all 30 clears and combines reinforced clasps, another screen layout, and two changing gates. Gifts and extra bubbles remain free; overflow retries only the current phase.
+
+New mechanics are introduced with short animated examples that can be replayed or skipped. The Rules page keeps fuller detail in expandable cards. Reduced-motion settings show a still example.
 
 The campaign and side adventure have separate unfinished-run slots. Starting another side adventure asks before replacing a played side board; main progress is retained. Side activities, relaxed challenge status, medals and boss checkpoints survive reloads, backups and journey recovery. New optional fields migrate into save version 4; campaign run editions 1–4 retain their existing interpretation.
 

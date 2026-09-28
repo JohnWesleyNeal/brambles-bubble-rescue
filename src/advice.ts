@@ -28,8 +28,8 @@ export function suggestShot(engine: GameEngine) {
       const benefit = bees ? `rescue ${bees} ${bees === 1 ? 'bee' : 'bees'}` : path ? 'open Mabel’s route' : drops ? 'drop a hanging group' : cracks ? 'crack a dew shell' : pops ? 'clear a matching group' : '';
       const equipped = engine.bloomArmed ? 'your Bloom shot' : engine.armedBooster ? 'your equipped gift' : `the ${names[color]} bubble`;
       best = { angle, swap, score, message: benefit
-        ? `${swap ? 'Swap first, then try' : 'Try'} ${equipped} ${aim} to ${benefit}. Follow the landing guide to line it up.`
-        : 'No immediate clear stood out. Place a bubble beside its own color to build a pair, or try a free gift. A setup shot can make the next match possible.' };
+        ? `${swap ? 'Swap, then aim' : 'Aim'} ${equipped} ${aim} to ${benefit}.`
+        : 'No clear yet. Build a same-color pair or try a free gift.' };
     }
   }
   return best;

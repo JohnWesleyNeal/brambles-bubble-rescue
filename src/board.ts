@@ -197,15 +197,23 @@ export class BubbleBoard {
     };
   }
 
-  bonk(cell: Cell): SettleResult {
+  bonk(cell: Cell, shock = false): SettleResult {
     const bubble = this.get(cell);
     if (!bubble) throw new Error('Bonk needs a tile');
     this.cells.delete(key(cell));
     const popped = [{ ...cell, bubble }];
+    const cracked: Cell[] = [];
+    if (shock) for (const neighbor of neighborCells(cell)) {
+      const other = this.get(neighbor);
+      if (other?.kind === 'dew') {
+        this.cells.set(key(neighbor), { ...other, kind: 'normal' });
+        cracked.push(neighbor);
+      }
+    }
     const dropped = this.dropUnanchored();
     const cleared = [...popped, ...dropped];
     return {
-      placed: null, popped, dropped, cracked: [],
+      placed: null, popped, dropped, cracked,
       beesFreed: cleared.filter(({ bubble: tile }) => tile.bee).length,
       bonusShots: cleared.filter(({ bubble: tile }) => tile.kind === 'pollen').length * 2
     };

@@ -11,7 +11,7 @@ export interface BoosterDefinition {
 export const boosters: BoosterDefinition[] = [
   { id: 'rainbow', name: 'Rainbow Pop', symbol: '🌈', description: 'Burst the connected color you hit. Dew cracks; honeycomb blocks it.', unlockLevel: 1 },
   { id: 'double', name: 'Double Pop', symbol: '✿', description: 'Your current color pops with a pair instead of three.', unlockLevel: 5 },
-  { id: 'bonk', name: 'Bonk', symbol: '⬢', description: 'Remove the first tile you hit, even dew or honeycomb.', unlockLevel: 8 }
+  { id: 'bonk', name: 'Bonk', symbol: '⬢', description: 'Smash the first tile you hit. The jolt cracks nearby dew.', unlockLevel: 8 }
 ];
 
 export const boosterById = Object.fromEntries(boosters.map((booster) => [booster.id, booster])) as Record<BoosterId, BoosterDefinition>;

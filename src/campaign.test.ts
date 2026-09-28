@@ -28,7 +28,7 @@ const routes = [
 
 describe('edition four campaign', () => {
   for (const level of levels) it(`level ${level.id} has a normal-shot three-star route`, () => {
-    const game = new GameEngine(level);
+    const game = new GameEngine(level, 4);
     for (const move of routes[level.id - 1].split(' ')) {
       if (move.endsWith('s')) game.swap();
       game.fire(parseFloat(move));
@@ -60,7 +60,7 @@ describe('edition four campaign', () => {
   });
 
   it('restores a new Mabel route with charge, queue and progress intact', () => {
-    const game = new GameEngine(levels[14]);
+    const game = new GameEngine(levels[14], 4);
     const actions: RunAction[] = [{ type: 'fire', angle: -1.2 }]; game.fire(-1.2);
     const restored = restoreActiveRun({ version: 4, levelId: 15, actions }, levels, 30)!.engine;
     expect(restored.board.entries()).toEqual(game.board.entries());
@@ -76,5 +76,19 @@ describe('edition four campaign', () => {
     expect(game.fire(-.4)).toEqual(untouched.fire(-.4));
     expect(game.nextColor).toBe(untouched.nextColor);
     expect(game.board.windPosition()).toBe(untouched.board.windPosition());
+  });
+});
+
+describe('edition five campaign', () => {
+  for (const level of levels) it(`level ${level.id} remains winnable with regular shots`, () => {
+    const game = new GameEngine(level, 5);
+    const route = level.id === 28 ? '-0.85s -0.85 -1.2 -1.1 -1.2s -1.1 -1.15 -1.2 -1.2' : routes[level.id - 1];
+    for (const move of route.split(' ')) {
+      if (move.endsWith('s')) game.swap();
+      game.fire(parseFloat(move));
+      if (game.won) break;
+    }
+    expect(game.won).toBe(true);
+    expect(game.turns).toBeLessThanOrEqual(level.par);
   });
 });

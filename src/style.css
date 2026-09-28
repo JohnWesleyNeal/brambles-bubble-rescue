@@ -354,6 +354,10 @@ button:disabled { cursor: default; }
 .guide-card h2 { margin-top: 22px; }
 .guide-card p { max-width: 245px; margin: 17px auto 25px; }
 .guide-card .guide-reminder { margin: -7px auto 18px; font-size: 11px; color: #477960; }
+.lesson-stage { margin: 14px auto 6px; max-width: 270px; }
+.lesson-demo { display: block; width: 100%; height: auto; border-radius: 22px; box-shadow: 0 8px 20px #244d3d2b; }
+.guide-card .guide-line { margin: 11px auto 14px; max-width: 260px; font-weight: 800; color: #315d4d; }
+.guide-card #guide-replay, .guide-card #guide-skip { margin: 8px 5px 0; }
 .inspect-card .rule-symbol { display: inline-block; font-size: 44px; }
 .inspect-card .inspected-detail { padding: 8px; border-radius: 12px; background: #eaf2d5; font-weight: 800; }
 .color-options { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin: 10px 0 20px; }
@@ -401,6 +405,14 @@ button:disabled { cursor: default; }
   background: #fffdf4;
 }
 .rule-card.featured { border-color: #d38b55; background: #fff2d9; }
+.rules-sheet details.rule-card { display: block; }
+.rules-sheet .rule-card summary { display: flex; align-items: center; gap: 9px; cursor: pointer; list-style: none; }
+.rules-sheet .rule-card summary::-webkit-details-marker { display: none; }
+.rules-sheet .rule-card summary small { display: block; margin-top: 2px; }
+.rules-sheet .rule-card > p { padding: 7px 4px 0 49px; }
+.rule-extra { margin: 13px 3px; padding: 10px; border-radius: 12px; background: #eaf2dc; color: #315c49; font-size: 11px; }
+.rule-extra summary { font-weight: 800; cursor: pointer; }
+.rule-extra p { margin: 8px 0 0; }
 .rule-symbol, .booster-symbol { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #e4efd8; color: #ac7046; font-size: 25px; }
 .rule-card strong, .booster-card strong { color: #315c49; font-size: 13px; }
 .rule-card p, .booster-card p { margin: 3px 0; color: #586d5a; font-size: 11px; line-height: 1.35; }

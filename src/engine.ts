@@ -15,6 +15,7 @@ export interface FireResult {
   lost: boolean;
   bloom?: boolean;
   flight?: { from: number; to: number; arrived: boolean };
+  bossBeat?: 'clasp' | 'screen' | 'stalled' | 'gate';
 }
 
 class SeededRandom {
@@ -52,8 +53,9 @@ export class GameEngine {
   bankRescue = false;
   bankBees = 0;
   challengeRelaxed = false;
+  screenStunned = false;
 
-  constructor(level: LevelDefinition, readonly rulesVersion: 1 | 2 | 3 | 4 = 4, readonly activity?: Activity) {
+  constructor(level: LevelDefinition, readonly rulesVersion: 1 | 2 | 3 | 4 | 5 = 5, readonly activity?: Activity) {
     this.level = level;
     this.board = new BubbleBoard(level.rows, level.specials);
     this.totalBees = this.board.beeCount() + (this.flightPath ? 1 : 0);
@@ -74,6 +76,16 @@ export class GameEngine {
     this.challengeRelaxed = true; return true;
   }
   get flightPath() { return this.rulesVersion >= 3 ? this.level.flightPath : undefined; }
+  get bossReadout(): string | undefined {
+    if (this.activity?.kind !== 'boss') return undefined;
+    if (this.rulesVersion < 5) return `Phase ${this.activity.phase + 1} of 3`;
+    if (this.activity.phase === 0) {
+      const open = [0, 8].filter(col => !this.board.get({ row: 0, col })?.bee).length;
+      return `${open}/2 clasps open`;
+    }
+    if (this.activity.phase === 1) return this.screenStunned ? 'Screen stalled by Bonk' : `Screen tries to shift in ${2 - this.turns % 2} ${this.turns % 2 ? 'shot' : 'shots'}`;
+    return `Mabel: ${this.flightStep}/${this.flightPath?.length ?? 0} spaces open`;
+  }
   // Independent simulation for contextual hints; never consumes the live queue.
   clone(): GameEngine {
     return Object.assign(new GameEngine(this.level, this.rulesVersion, this.activity), this, {
@@ -126,7 +138,7 @@ export class GameEngine {
 
   shotColor(): BubbleColor { return this.armedBooster?.color ?? this.wildColor ?? this.currentColor; }
 
-  preview(angle: number): ShotTrace { return traceShot(this.board, angle); }
+  preview(angle: number): ShotTrace { return traceShot(this.board, angle, this.rulesVersion < 5); }
 
   canFire(angle: number): boolean {
     if (this.won || this.lost || this.awaitingTopUp) return false;
@@ -170,11 +182,15 @@ export class GameEngine {
       return { trace, color, wild, booster, won: false, lost: true };
     }
     const settled = booster === 'bonk'
-      ? this.board.bonk(trace.impact!)
+      ? this.board.bonk(trace.impact!, this.rulesVersion >= 5)
       : bloom ? this.board.bloomBurst(trace.impact!)
       : rainbow ? this.board.rainbow(trace.impact!)
       : this.board.settle(trace.placement!, { color, bee: false, kind: 'normal' }, booster === 'double' ? 2 : 3);
-    const turn = this.board.advanceTurn(this.turns, this.level.wind);
+    const bossScreen = this.rulesVersion >= 5 && this.activity?.kind === 'boss' && this.activity.phase === 1;
+    if (bossScreen && booster === 'bonk' && trace.impact && this.level.wind && trace.impact.row === this.level.wind.row && trace.impact.col >= this.level.wind.start && trace.impact.col < this.level.wind.start + this.level.wind.length) this.screenStunned = true;
+    const stall = Boolean(bossScreen && this.screenStunned && this.turns % 2 === 0);
+    const turn = this.board.advanceTurn(this.turns, stall ? undefined : this.level.wind);
+    if (stall) this.screenStunned = false;
     this.freedBees += settled.beesFreed + turn.beesFreed;
     const dropped = settled.dropped.length + turn.dropped.length;
     this.largestDrop = Math.max(this.largestDrop, dropped);
@@ -196,6 +212,10 @@ export class GameEngine {
     this.lost = !this.won && (this.board.isOverflowing() || (this.rulesVersion === 1 && this.shots <= 0));
     if (this.challenge?.shotLimit) this.shots = Math.min(this.shots, Math.max(0, this.challenge.shotLimit - this.turns));
     this.awaitingTopUp = !this.won && !this.lost && this.shots <= 0;
-    return { trace, settled, turn, color, wild, booster, bloom, flight: this.flightPath ? { from, to: this.flightStep, arrived } : undefined, won: this.won, lost: this.lost };
+    const bossBeat = this.rulesVersion >= 5 && this.activity?.kind === 'boss'
+      ? this.activity.phase === 0 && [...settled.popped, ...settled.dropped].some(cell => cell.row === 0 && (cell.col === 0 || cell.col === 8)) ? 'clasp'
+        : stall ? 'stalled' : turn.moved ? 'screen' : this.activity.phase === 2 && turn.changed.length ? 'gate' : undefined
+      : undefined;
+    return { trace, settled, turn, color, wild, booster, bloom, flight: this.flightPath ? { from, to: this.flightStep, arrived } : undefined, bossBeat, won: this.won, lost: this.lost };
   }
 }

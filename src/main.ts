@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { registerSW } from 'virtual:pwa-register';
-import { BUBBLE_RADIUS, cellPosition, type Bubble, type BubbleColor, type OccupiedCell } from './board';
+import { BUBBLE_RADIUS, cellPosition, neighborCells, type Bubble, type BubbleColor, type OccupiedCell } from './board';
 import { GameEngine, type FireResult } from './engine';
 import { chapters, levels } from './levels';
 import { gameContent } from './content';
@@ -18,6 +18,7 @@ import { WoodlandAudio } from './audio';
 import { gardenArt } from './garden';
 import { friends, friendsCards, styleChoices, gardenStyles, masteryLabels } from './friends';
 import { showSaveScreen } from './save-screen';
+import { lessonDemo, lessonFor } from './lessons';
 
 registerSW({ immediate: true });
 const BASE = import.meta.env.BASE_URL;
@@ -59,7 +60,7 @@ function notice(message: string): void {
   toastTimer = window.setTimeout(() => toast.classList.add('hidden'), 2600);
 }
 
-type SoundName = 'shoot' | 'pop' | 'rescue' | 'win' | 'swap' | 'fail' | 'bonus' | 'wind';
+type SoundName = 'shoot' | 'pop' | 'bonk' | 'rescue' | 'win' | 'swap' | 'fail' | 'bonus' | 'wind';
 let audioContext: AudioContext | undefined;
 let effectsBus: GainNode | undefined;
 function syncEffects(): void {
@@ -74,7 +75,7 @@ function playSound(type: SoundName): void {
     syncEffects();
     if (audioContext.state === 'suspended') void audioContext.resume();
     const notes: Record<SoundName, [number, number, number][]> = {
-      shoot: [[310, 510, .12]], pop: [[530, 320, .09], [650, 420, .08]],
+      shoot: [[310, 510, .12]], pop: [[530, 320, .09], [650, 420, .08]], bonk: [[220, 85, .16], [420, 180, .11]],
       rescue: [[550, 740, .12], [740, 990, .16]],
       win: [[440, 440, .13], [554, 554, .13], [659, 659, .13], [880, 880, .3]],
       swap: [[400, 650, .1]], fail: [[380, 310, .2], [310, 260, .22]],
@@ -84,7 +85,7 @@ function playSound(type: SoundName): void {
     for (const [from, to, duration] of notes[type]) {
       const oscillator = audioContext.createOscillator();
       const gain = audioContext.createGain();
-      oscillator.type = type === 'pop' ? 'triangle' : 'sine';
+      oscillator.type = type === 'pop' || type === 'bonk' ? 'triangle' : 'sine';
       oscillator.frequency.setValueAtTime(from, audioContext.currentTime + offset);
       oscillator.frequency.exponentialRampToValueAtTime(to, audioContext.currentTime + offset + duration);
       gain.gain.setValueAtTime(.0001, audioContext.currentTime + offset);
@@ -104,6 +105,7 @@ class PlayScene extends Phaser.Scene {
   displayedBees = 0;
   private bramble?: Phaser.GameObjects.Image;
   private blink?: Phaser.GameObjects.Image;
+  private monty?: Phaser.GameObjects.Image;
   private trailClock = 0;
   private sparkleBudget = 0;
   private aiming = false;
@@ -204,6 +206,7 @@ class PlayScene extends Phaser.Scene {
     this.shooterBubble?.destroy();
     this.nextBubble?.destroy();
     this.wildLabel?.destroy();
+    this.monty = undefined;
   }
 
   private saveAttempt(): void {
@@ -337,12 +340,9 @@ class PlayScene extends Phaser.Scene {
     sling.lineStyle(7, 0x9a653b, 1).lineBetween(195, 718, 195, 683);
     this.sceneryLayer.add(sling);
     if (this.engine?.activity?.kind === 'boss') {
-      const monty = this.add.image(73, 555, 'magpie').setDisplaySize(110, 110);
-      this.sceneryLayer.add(monty);
-      this.sceneryLayer.add(this.add.text(132, 530, `MONTY’S PICNIC HEIST\nPhase ${this.engine.activity.phase + 1} of 3\n${['Undo both clasps', 'Outsmart the moving screen', 'Bring Mabel home'][this.engine.activity.phase]}`, {
-        fontFamily: 'Trebuchet MS', fontSize: '12px', color: '#315851', lineSpacing: 5
-      }));
-      if (!reducedMotion.matches) this.tweens.add({ targets: monty, angle: { from: -3, to: 3 }, duration: 1800, yoyo: true, repeat: -1 });
+      this.monty = this.add.image(73, 555, 'magpie').setDisplaySize(110, 110);
+      this.sceneryLayer.add(this.monty);
+      if (!reducedMotion.matches) this.tweens.add({ targets: this.monty, angle: { from: -3, to: 3 }, duration: 1800, yoyo: true, repeat: -1 });
     }
     this.sceneryLayer.add(this.add.text(290, 756, 'NEXT', {
       fontFamily: 'Trebuchet MS, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#285a4d', letterSpacing: 1
@@ -459,6 +459,17 @@ class PlayScene extends Phaser.Scene {
       }
     }
     if (this.pathBee) this.boardLayer.add(this.pathBee);
+    if (this.engine.activity?.kind === 'boss' && this.engine.activity.phase === 0 && this.engine.rulesVersion >= 5) {
+      const clasps = this.add.graphics();
+      for (const col of [0, 8]) {
+        const cell = { row: 0, col };
+        if (!this.engine.board.get(cell)?.bee) continue;
+        const point = cellPosition(cell);
+        clasps.lineStyle(2.5, 0xffd67b, .95).strokeCircle(point.x, point.y, 21);
+        clasps.fillStyle(0xffe29c, .95).fillCircle(point.x, point.y - 24, 3);
+      }
+      this.boardLayer.add(clasps);
+    }
   }
 
   private animateFlight(result: FireResult): number {
@@ -579,7 +590,11 @@ class PlayScene extends Phaser.Scene {
     }
     if (this.engine.armedBooster?.id === 'bonk' && trace.impact) {
       const point = cellPosition(trace.impact);
-      this.aimGraphics.lineStyle(3, 0xffd466, .95).strokeCircle(point.x, point.y, 21);
+      this.aimGraphics.lineStyle(4, 0xffd466, .95).strokeCircle(point.x, point.y, 22);
+      if (this.engine.rulesVersion >= 5) for (const cell of neighborCells(trace.impact)) if (this.engine.board.get(cell)?.kind === 'dew') {
+        const dew = cellPosition(cell);
+        this.aimGraphics.lineStyle(2.5, 0xd2f8ff, .95).strokeCircle(dew.x, dew.y, 21);
+      }
     }
   }
   private fire(): void {
@@ -641,11 +656,15 @@ class PlayScene extends Phaser.Scene {
     this.drawAim();
     updateHud(this);
     if (result.settled?.popped.length) playSound('pop');
+    if (result.booster === 'bonk') playSound('bonk');
     if ((result.settled?.beesFreed ?? 0) + (result.turn?.beesFreed ?? 0)) playSound('rescue');
     if ((result.settled?.bonusShots ?? 0) + (result.turn?.bonusShots ?? 0)) playSound('bonus');
     if (result.turn?.moved) playSound('wind');
     const animationTime = Math.max(this.animateCleared(result), this.animateFlight(result));
     this.showShotFeedback(result);
+    if (result.bossBeat && this.monty && !reducedMotion.matches) {
+      this.tweens.add({ targets: this.monty, x: result.bossBeat === 'stalled' ? 57 : 83, scale: result.bossBeat === 'clasp' ? 1.12 : 1.06, duration: 130, yoyo: true, ease: 'Back.Out' });
+    }
     const epoch = this.epoch;
     this.time.delayedCall(animationTime, () => {
       if (epoch !== this.epoch) return;
@@ -677,6 +696,10 @@ class PlayScene extends Phaser.Scene {
     if (result.bloom) labels.push('A little room to bloom! ✿');
     else if (this.engine?.bloomUnlocked && this.engine.bloomCharge === this.engine.bloomGoal) labels.push('Bloom is ready beside the launcher ✿');
     if (result.flight?.arrived) labels.push('Mabel found her way home!');
+    if (result.bossBeat === 'clasp') labels.push('Clasp open! 🔓');
+    else if (result.bossBeat === 'stalled') labels.push('Monty’s screen stalled!');
+    else if (result.bossBeat === 'screen') labels.push('Monty shifts the screen →');
+    else if (result.bossBeat === 'gate') labels.push('Monty flips the gate ↻');
     if (freed) labels.push(freed === 1 ? 'Bee friend home! 🐝' : `${freed} bee friends home! 🐝`);
     if (bonus) labels.push(this.engine?.challenge?.shotLimit ? 'Pollen found · challenge limit stays' : `+${bonus} bubbles from pollen ✺`);
     else if (cracked) labels.push('Dew shell cracked ❄');
@@ -735,7 +758,11 @@ class PlayScene extends Phaser.Scene {
       } else if (result.booster === 'double') {
         this.impactRing(impact.x - 7, impact.y, 0xfff0ad);
         this.impactRing(impact.x + 7, impact.y, palette[result.color].fill, 70);
-      } else { this.impactRing(impact.x, impact.y, 0xe4b16d); this.sparkle(impact.x, impact.y, 0xd9ac69, 7, true); }
+      } else {
+        this.impactRing(impact.x, impact.y, 0xffe29a);
+        this.impactRing(impact.x, impact.y, 0x9b663f, 85);
+        this.sparkle(impact.x, impact.y, 0xe9bd70, 14, true);
+      }
     }
     for (const cell of result.settled?.cracked ?? []) {
       const p = cellPosition(cell); this.sparkle(p.x, p.y, 0xe6faff, 5, true); this.impactRing(p.x, p.y, 0xb8e0eb);
@@ -795,7 +822,7 @@ function updateHud(current: PlayScene): void {
   levelName.textContent = engine.level.name;
   shotsCount.textContent = String(engine.shots);
   document.querySelector('#coach-line')!.textContent = coaching(engine);
-  document.querySelector('#star-target')!.textContent = engine.activity ? engine.activity.kind === 'boss' ? 'Picnic heist · gifts welcome · checkpoint each phase' : engine.challengeRelaxed ? 'Practice · challenge rules off · no medal this attempt' : engine.challenge?.bankGoal ? `Bank-shot rescues ${engine.bankBees}/${engine.challenge.bankGoal} · finish to earn the medal` : `${engine.level.name} · ${engine.turns} shots taken` : `★ ★ ★ in ${engine.level.par} shots · taken ${engine.turns}`;
+  document.querySelector('#star-target')!.textContent = engine.activity ? engine.activity.kind === 'boss' ? engine.bossReadout ?? 'Monty’s picnic heist' : engine.challengeRelaxed ? 'Practice · no medal this time' : engine.challenge?.bankGoal ? `Bank rescues ${engine.bankBees}/${engine.challenge.bankGoal}` : `${engine.turns} shots taken` : `★ ★ ★ in ${engine.level.par} shots · taken ${engine.turns}`;
   beesCount.textContent = `${current.displayedBees}/${engine.totalBees}`;
   const bloomButton = document.querySelector<HTMLButtonElement>('#bloom-shot')!;
   bloomButton.hidden = !engine.bloomUnlocked;
@@ -890,18 +917,18 @@ function showRules(returnTo: () => void, focus?: RuleId): void {
   const remaining = ordered.map((rule) => rule.id).filter((id) => !current.includes(id));
   const render = (ids: RuleId[]): string => ids.map((id) => {
     const rule = ruleById[id];
-    return `<article class="rule-card ${focus === id ? 'featured' : ''}"><span class="rule-symbol">${rule.symbol}</span><div><strong>${escapeHtml(rule.name)}</strong><p>${escapeHtml(rule.short)} ${escapeHtml(rule.detail)}</p><small>Appears by level ${rule.appears}</small></div></article>`;
+    return `<details class="rule-card ${focus === id ? 'featured' : ''}" ${focus === id ? 'open' : ''}><summary><span class="rule-symbol">${rule.symbol}</span><span><strong>${escapeHtml(rule.name)}</strong><small>${escapeHtml(rule.short)}</small></span></summary><p>${escapeHtml(rule.detail)}</p></details>`;
   }).join('');
   const lesson = scene.engine?.level.tutorial;
   overlay.className = 'overlay sheet-overlay';
-  overlay.innerHTML = `<section class="sheet rules-sheet" role="dialog" aria-label="Bubble rules"><div class="sheet-top"><span class="eyebrow">BRAMBLE'S FIELD GUIDE</span><button class="sheet-close" id="rules-close" aria-label="Close rules">×</button></div><h2>Bubble rules</h2><p class="sheet-lead">Open this any time. Your level waits right where you left it.</p><div class="sheet-scroll">${current.length ? `<h3>On this board</h3>${render(current)}` : ''}<h3>${current.length ? 'Other bubbles and tricks' : 'All bubbles and tricks'}</h3>${render(remaining)}<h3>Bloom shot · earned in play</h3><p class="rule-footnote">From level 9 on new attempts, clear 12 bubbles to grow Bloom. Tap its flower beside the launcher, then hit a colored bubble: it bursts that bubble and its colored neighbors. Honeycomb stays; dew cracks. Bloom uses one shot, never gift stock, and cannot charge itself. Keep a ready Bloom for the right moment.</p><h3>Mabel’s flight path</h3><p class="rule-footnote">On path meadows, clear the dotted route from the bottom up. Mabel moves after each shot and stops before blocked spaces. Bring her to the little hive and rescue any other bees to finish.</p><h3>Little keepsakes</h3><p class="rule-footnote">Garden craft: finish without gifts, wild assistance or top-ups (earned Bloom is welcome). Lovely cascade: drop 8 bubbles in one shot. Around the bend: rescue a bubbled bee with a bank shot. Keepsakes are optional and never affect your stars or unlocks.</p><h3>Power-up shots</h3>${boosters.map((booster) => `<article class="rule-card"><span class="rule-symbol">${booster.symbol}</span><div><strong>${escapeHtml(booster.name)}</strong><p>${escapeHtml(booster.id === 'rainbow' && scene.engine?.rulesVersion === 1 ? 'This saved attempt keeps its original chosen-color Rainbow. New attempts use the color burst.' : booster.description)} Uses one regular shot.</p><small>Available by level ${booster.unlockLevel}</small></div></article>`).join('')}<p class="rule-footnote">If bubbles run out, take five more for free. Stars count every shot. After two losses, a free chosen-color shot helps on retries.</p></div><div class="sheet-actions">${scene.engine && !scene.engine.won && !scene.engine.lost ? '<button id="inspect-start" class="secondary-button">Inspect bubbles on this board</button>' : ''}${lesson ? '<button id="replay-lesson" class="text-button">Replay this level’s lesson</button>' : ''}</div></section>`;
+  overlay.innerHTML = `<section class="sheet rules-sheet" role="dialog" aria-label="Bubble rules"><div class="sheet-top"><span class="eyebrow">BRAMBLE'S FIELD GUIDE</span><button class="sheet-close" id="rules-close" aria-label="Close rules">×</button></div><h2>Bubble rules</h2><div class="sheet-scroll">${current.length ? `<h3>On this board</h3>${render(current)}` : ''}<h3>${current.length ? 'Other tricks' : 'All tricks'}</h3>${render(remaining)}<h3>Gifts</h3>${boosters.map(booster => `<details class="rule-card"><summary><span class="rule-symbol">${booster.symbol}</span><span><strong>${escapeHtml(booster.name)}</strong><small>${escapeHtml(booster.description)}</small></span></summary><p>Uses one shot. Gifts can be refilled for free.</p></details>`).join('')}<details class="rule-extra"><summary>More about Bloom, Mabel and keepsakes</summary><p>Bloom: clear 12 bubbles, then tap the flower. It bursts a colored target and its colored neighbors.</p><p>Mabel: clear her dotted route. She moves after each shot.</p><p>Keepsakes reward an unaided clear, a drop of 8, or a bank rescue.</p></details><p class="rule-footnote">Five more bubbles are always free in normal play. Stars count shots used.</p></div><div class="sheet-actions">${scene.engine && !scene.engine.won && !scene.engine.lost ? '<button id="inspect-start" class="secondary-button">Inspect this board</button>' : ''}${lesson ? '<button id="replay-lesson" class="text-button">Replay lesson</button>' : ''}</div></section>`;
   overlay.querySelector<HTMLButtonElement>('#rules-close')!.addEventListener('click', returnTo);
   overlay.querySelector<HTMLButtonElement>('#inspect-start')?.addEventListener('click', () => {
     scene.setInspectMode(true);
     backToLevel();
   });
   overlay.querySelector<HTMLButtonElement>('#replay-lesson')?.addEventListener('click', () => {
-    showGuide('A NEW LITTLE TRICK', scene.engine!.level.name, lesson!, () => showRules(returnTo, focus));
+    showGuide('A NEW LITTLE TRICK', scene.engine!.level.name, lesson!, () => showRules(returnTo, focus), false, scene.engine!.level.id);
   });
 }
 
@@ -1029,7 +1056,7 @@ function launchActivity(activity: Activity): void {
   if (!activityUnlocked(activity, save.stars)) return;
   const level = activityLevel(activity);
   overlay.classList.add('hidden'); hud.classList.remove('hidden');
-  scene.startLevel(level.id - 1, { engine: new GameEngine(level, 4, activity), actions: [] });
+  scene.startLevel(level.id - 1, { engine: new GameEngine(level, 5, activity), actions: [] });
 }
 function resumeSideActivity(): void {
   const restored = restoreActiveRun(save.activeSideRun, levels, save.unlocked);
@@ -1065,13 +1092,16 @@ function beginLevel(index: number, fresh = false): void {
     showGuide('A NEW LITTLE TRICK', scene.engine!.level.name, tutorial, () => {
       save.tutorialsSeen.push(lessonKey);
       storeSave(save);
-    }, [6, 7].includes(index));
+    }, [6, 7].includes(index), scene.engine!.level.id);
   }
 }
-function showGuide(label: string, title: string, message: string, after?: () => void, bagPrompt = false): void {
+function showGuide(label: string, title: string, message: string, after?: () => void, bagPrompt = false, levelId?: number): void {
+  const lesson = levelId && scene.engine?.rulesVersion === 5 ? lessonFor(levelId) : undefined;
   overlay.className = 'overlay result-overlay';
-  overlay.innerHTML = `<div class="result-card guide-card"><span class="eyebrow">${escapeHtml(label)}</span><h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p><p class="guide-reminder">Try it at your own pace. Rules explains each bubble; Hint can help with the board in front of you.</p><button id="guide-close" class="primary-button">Got it <span>➜</span></button>${bagPrompt ? '<button id="guide-bag" class="secondary-button">Show me my gifts ✿</button>' : ''}</div>`;
+  overlay.innerHTML = `<div class="result-card guide-card"><span class="eyebrow">${escapeHtml(label)}</span><h2>${escapeHtml(title)}</h2>${lesson ? `<div class="lesson-stage">${lessonDemo(lesson, reducedMotion.matches)}</div><p class="guide-line">${escapeHtml(lesson.line)}</p>` : `<p>${escapeHtml(message)}</p>`}<button id="guide-close" class="primary-button">${lesson ? 'Let me try' : 'Got it'} <span>➜</span></button>${lesson && !reducedMotion.matches ? '<button id="guide-replay" class="text-button">Replay example</button>' : ''}${lesson ? '<button id="guide-skip" class="text-button">Skip</button>' : ''}${bagPrompt ? '<button id="guide-bag" class="secondary-button">Show me my gifts ✿</button>' : ''}</div>`;
   overlay.querySelector<HTMLButtonElement>('#guide-close')!.addEventListener('click', () => { overlay.classList.add('hidden'); after?.(); });
+  overlay.querySelector<HTMLButtonElement>('#guide-skip')?.addEventListener('click', () => { overlay.classList.add('hidden'); after?.(); });
+  overlay.querySelector<HTMLButtonElement>('#guide-replay')?.addEventListener('click', () => { overlay.querySelector('.lesson-stage')!.innerHTML = lessonDemo(lesson!, false); });
   overlay.querySelector<HTMLButtonElement>('#guide-bag')?.addEventListener('click', () => { after?.(); showBag(backToLevel); });
 }
 function firstUnfinished(): number {
@@ -1090,7 +1120,7 @@ function showHome(): void {
   const progress = Math.round(complete / levels.length * 100);
   overlay.innerHTML = `<div class="home-header"><span class="eyebrow">A LITTLE ADVENTURE FOR YOU</span><h1>Bramble’s<br><em>Bubble Rescue</em></h1><p>Pop bubbles. Free little friends. Make someone smile.</p></div>
     <img class="hero-art" src="${BASE}bramble.svg" alt="Bramble the friendly honey badger" />
-    <div class="home-panel"><div class="dedication">${escapeHtml(gameContent.opening)}</div><button id="primary-play" class="primary-button">${pausedIndex !== undefined ? `Resume · Level ${next + 1}` : complete === levels.length ? 'Play again' : `Continue · Level ${next + 1}`} <span>➜</span></button>${pausedIndex !== undefined ? '<div class="paused-note">Your in-progress meadow is right where you left it.</div>' : ''}<button id="choose-level" class="secondary-button">Choose a level</button><button id="home-adventures" class="secondary-button adventure-link">${save.activeSideRun ? 'Resume side adventure' : 'Side adventures · challenges & boss'}</button><div class="home-quick-actions"><button id="home-garden">My Garden</button><button id="home-bag">Gifts</button><button id="home-audio">Sound</button><button id="home-rules">Rules</button></div><div class="journey-progress">${complete} of 30 meadows complete</div><div class="progress-track" role="progressbar" aria-valuenow="${complete}" aria-valuemin="0" aria-valuemax="30" aria-label="Meadows complete"><span style="width:${progress}%"></span></div></div>
+    <div class="home-panel"><div class="dedication">${escapeHtml(gameContent.opening)}</div><button id="primary-play" class="primary-button">${pausedIndex !== undefined ? `Resume · Level ${next + 1}` : complete === levels.length ? 'Play again' : `Continue · Level ${next + 1}`} <span>➜</span></button>${pausedIndex !== undefined ? '<div class="paused-note">Your in-progress meadow is right where you left it.</div>' : ''}<button id="choose-level" class="secondary-button">Choose a level</button><button id="home-adventures" class="secondary-button adventure-link">Side adventures</button><div class="home-quick-actions"><button id="home-garden">My Garden</button><button id="home-bag">Gifts</button><button id="home-audio">Sound</button><button id="home-rules">Rules</button></div><div class="journey-progress">${complete} of 30 meadows complete</div><div class="progress-track" role="progressbar" aria-valuenow="${complete}" aria-valuemin="0" aria-valuemax="30" aria-label="Meadows complete"><span style="width:${progress}%"></span></div></div>
     <div class="home-footer">A cosy little game · No timers, just bubbles</div>`;
   overlay.querySelector<HTMLButtonElement>('#primary-play')!.addEventListener('click', () => beginLevel(next));
   overlay.querySelector<HTMLButtonElement>('#choose-level')!.addEventListener('click', () => showChapterSelect(Math.floor(next / 10)));

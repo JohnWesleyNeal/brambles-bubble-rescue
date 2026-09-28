@@ -26,7 +26,12 @@ function play(game: GameEngine, route: string): RunAction[] {
   }
   return actions;
 }
-const create = (activity: Activity) => new GameEngine(activityLevel(activity), 4, activity);
+const create = (activity: Activity) => new GameEngine(activityLevel(activity, 4), 4, activity);
+const createNew = (activity: Activity) => new GameEngine(activityLevel(activity, 5), 5, activity);
+const newBossRoutes = [
+  ['-1.2 -1.2s -1.1 -1.15s -1.2 -1.2', '-1.2 0.3s -1.2 -1.2 -1.2', '-1.2s -1.2s -1.2 -1 0.05 -1 -0.7'],
+  ['-1.2 -1.2s -1.1 -1.15s -1.2 -1.2', '-0.4s -1.2s -1 -0.3s -0.35s -1.05s -1.2s -1.15 -1.1 -1.15', '-1.2 -1.1 0.35 -0.55s -0.7s']
+];
 
 describe('six curated challenges', () => {
   challenges.forEach((c, i) => it(`${c.id} has a regular-shot medal route`, () => {
@@ -101,6 +106,53 @@ describe('Monty’s picnic heist', () => {
     const save = migrateSave(null); const game = create({ kind: 'boss', phase: 2, rematch: false });
     play(game, bossRoutes[0][2]); recordActivityResult(save, game);
     expect(save.bossCleared).toBe(true); expect(save.bossCheckpoint).toBe(0); expect(save.stars).toEqual([]);
+  });
+});
+
+describe('Monty’s new moves', () => {
+  for (const rematch of [false, true]) for (let phase = 0; phase < 3; phase++) it(`${rematch ? 'revenge' : 'picnic'} phase ${phase + 1} has a regular-shot win`, () => {
+    const game = createNew({ kind: 'boss', phase, rematch });
+    play(game, newBossRoutes[Number(rematch)][phase]);
+    expect(game.won, `turns ${game.turns}, bees ${game.freedBees}/${game.totalBees}`).toBe(true);
+    expect(game.usedHelp).toBe(false);
+  });
+  it('gives the clasps protected bee targets and the finale a changing gate', () => {
+    const clasps = createNew({ kind: 'boss', phase: 0, rematch: false });
+    for (const col of [0, 8]) expect(clasps.board.get({ row: 0, col })).toMatchObject({ bee: true, kind: 'dew' });
+    const finale = createNew({ kind: 'boss', phase: 2, rematch: false });
+    expect(finale.board.get({ row: 3, col: 4 })?.kind).toBe('bloom');
+    const original = finale.board.get({ row: 3, col: 4 })?.color;
+    finale.fire(-1.2);
+    expect(finale.board.get({ row: 3, col: 4 })?.color).not.toBe(original);
+  });
+  it('restores a new boss run while retaining the old boss layout', () => {
+    const activity: Activity = { kind: 'boss', phase: 0, rematch: false };
+    const actions: RunAction[] = [{ type: 'fire', angle: -1.2 }];
+    const fresh = createNew(activity); fresh.fire(-1.2);
+    const restored = restoreActiveRun({ version: 5, levelId: 20, activity, actions }, levels, 30)!.engine;
+    expect(restored.board.entries()).toEqual(fresh.board.entries());
+    expect(restored.shots).toBe(fresh.shots);
+    expect(create(activity).board.beeCount()).toBeLessThan(createNew(activity).board.beeCount());
+    const save = migrateSave({ version: 4, stars: Array(20).fill(3), unlocked: 21 });
+    save.activeSideRun = { version: 5, levelId: 20, activity, actions };
+    expect(importJourney(exportJourney(save)).activeSideRun).toEqual(save.activeSideRun);
+  });
+  it('lets Bonk stall a screen shift after hitting its marked strip', () => {
+    const game = createNew({ kind: 'boss', phase: 1, rematch: false });
+    const wind = game.level.wind!;
+    const angle = Array.from({ length: 241 }, (_, i) => -1.2 + i * .01).find(value => {
+      const hit = game.preview(value).impact;
+      return hit?.row === wind.row && hit.col >= wind.start && hit.col < wind.start + wind.length;
+    });
+    expect(angle).toBeDefined();
+    game.armBooster('bonk');
+    game.fire(angle!);
+    expect(game.screenStunned).toBe(true);
+    const before = game.board.windPosition();
+    const result = game.fire(0);
+    expect(result.bossBeat).toBe('stalled');
+    expect(game.board.windPosition()).toBe(before);
+    expect(game.screenStunned).toBe(false);
   });
 });
 

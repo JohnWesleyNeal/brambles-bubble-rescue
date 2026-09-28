@@ -78,4 +78,12 @@ describe('BubbleBoard', () => {
     expect(result.popped[0].bubble.kind).toBe('dew');
     expect(result.dropped).toHaveLength(1);
   });
+
+  it('lets a new Bonk crack adjacent dew without removing its bubble', () => {
+    const board = new BubbleBoard(['...Rr....'], [{ row: 0, col: 4, kind: 'dew' }]);
+    const result = board.bonk({ row: 0, col: 3 }, true);
+    expect(result.cracked).toEqual([{ row: 0, col: 4 }]);
+    expect(board.get({ row: 0, col: 4 })?.kind).toBe('normal');
+    expect(board.get({ row: 0, col: 4 })?.bee).toBe(true);
+  });
 });
