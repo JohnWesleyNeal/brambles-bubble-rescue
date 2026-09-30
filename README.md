@@ -89,3 +89,5 @@ Validation includes normal-shot medal routes for every challenge and wins for al
 ## A quieter woodland playfield
 
 The play screen now separates the shooting dock from the board. A labeled Next bubble, one Gifts button with available stock, and three generous Hint/Gifts/Swap controls replace the crowded launcher shortcuts. Rules stay in Pause and the special-bubble labels; Gifts includes a Put away action for equipped shots. Earned Bloom keeps its own dock space. Warm meadow illustration, softly lit glass bubbles and simpler HUD hierarchy add depth without moving the shot origin or board grid. Safe-area padding keeps the playfield away from phone notches and home indicators. Existing journeys, rules, short aim/Full assist choice and drag-to-cancel are unchanged.
+
+Bramble now keeps you company with a tiny breathing motion, gentle sway and occasional blink. He settles while you aim or open a menu, stays visible beside earned Bloom, and remains completely still with reduced motion enabled. The motion is visual only.

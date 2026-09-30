@@ -10,7 +10,7 @@ import { consumeBooster, loadSave, recordLoss, recordWin, recordMastery, refillG
 import { restoreActiveRun, type RestoredRun, type RunAction } from './run';
 import type { ShotTrace } from './shot';
 import './style.css';
-import { giftReadout, nextBubblePoint } from './play-presentation';
+import { brambleIdlePose, brambleMotionAllowed, giftReadout, nextBubblePoint } from './play-presentation';
 import { coaching, suggestShot } from './advice';
 import { activityLevel, activityUnlocked, bossPhases, challengeFor, type Activity } from './activities';
 import { recordActivityResult } from './activity-progress';
@@ -109,6 +109,9 @@ class PlayScene extends Phaser.Scene {
   displayedBees = 0;
   private bramble?: Phaser.GameObjects.Image;
   private blink?: Phaser.GameObjects.Image;
+  private brambleClock = 0;
+  private brambleMotion = 0;
+  private brambleSize = { width: 54, height: 56 };
   private monty?: Phaser.GameObjects.Image;
   private trailClock = 0;
   private sparkleBudget = 0;
@@ -368,16 +371,13 @@ class PlayScene extends Phaser.Scene {
     nextWell.fillStyle(0xe6e9cf, .8).fillCircle(nextBubblePoint.x, nextBubblePoint.y + 1, 24);
     nextWell.lineStyle(1, 0xb6c4a5, .65).strokeCircle(nextBubblePoint.x, nextBubblePoint.y + 1, 24);
     this.sceneryLayer.add(nextWell);
-    this.bramble = this.add.image(65, 710, 'bramble').setDisplaySize(54, 56).setVisible(!this.engine?.bloomUnlocked);
-    this.blink = this.add.image(65, 710, 'bramble-blink').setDisplaySize(54, 56).setVisible(false);
+    const hasBloom = Boolean(this.engine?.bloomUnlocked);
+    this.brambleClock = 0;
+    this.brambleMotion = 0;
+    this.brambleSize = hasBloom ? { width: 40, height: 42 } : { width: 54, height: 56 };
+    this.bramble = this.add.image(hasBloom ? 46 : 65, 710, 'bramble').setDisplaySize(this.brambleSize.width, this.brambleSize.height);
+    this.blink = this.add.image(hasBloom ? 46 : 65, 710, 'bramble-blink').setDisplaySize(this.brambleSize.width, this.brambleSize.height).setVisible(false);
     this.sceneryLayer.add([this.bramble, this.blink]);
-    if (!reducedMotion.matches && !this.engine?.bloomUnlocked) {
-      this.tweens.add({ targets: [this.bramble, this.blink], y: 708, duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-      this.time.addEvent({ delay: 4200, loop: true, callback: () => {
-        this.blink?.setVisible(true); this.bramble?.setVisible(false);
-        this.time.delayedCall(140, () => { this.blink?.setVisible(false); this.bramble?.setVisible(true); });
-      } });
-    }
     const sling = this.add.graphics();
     sling.fillStyle(0x7a6845, .14).fillEllipse(195, 735, 58, 13);
     sling.fillStyle(0x855637).fillRoundedRect(184, 701, 22, 35, 9);
@@ -698,6 +698,7 @@ class PlayScene extends Phaser.Scene {
     playSound('shoot');
   }
   update(_time: number, delta: number): void {
+    this.animateBramble(delta);
     if (!this.flying) return;
     const shot = this.flying;
     shot.index = Math.min(shot.trace.path.length - 1, shot.index + Math.max(900, shot.trace.path.length * 4 / .75) * Math.min(delta, 50) / 1000 / 4);
@@ -711,6 +712,20 @@ class PlayScene extends Phaser.Scene {
     }
     if (shot.index >= shot.trace.path.length - 1) this.land();
   }
+  private animateBramble(delta: number): void {
+    if (!this.engine || !this.bramble?.active || !this.blink?.active) return;
+    const allowed = brambleMotionAllowed({ aiming: this.aiming, menuOpen: !overlay.classList.contains('hidden'), pageHidden: document.hidden, reducedMotion: reducedMotion.matches });
+    const step = Math.min(delta, 50);
+    if (allowed) this.brambleClock += step;
+    this.brambleMotion = reducedMotion.matches ? 0 : Phaser.Math.Clamp(this.brambleMotion + (allowed ? step / 220 : -step / 140), 0, 1);
+    const pose = brambleIdlePose(this.brambleClock, this.brambleMotion);
+    for (const image of [this.bramble, this.blink]) {
+      image.setY(710 - pose.rise).setAngle(pose.angle).setDisplaySize(this.brambleSize.width * pose.scaleX, this.brambleSize.height * pose.scaleY);
+    }
+    this.blink.setVisible(allowed && pose.blink);
+    this.bramble.setVisible(!this.blink.visible);
+  }
+
   private land(): void {
     if (!this.flying || !this.engine) return;
     const shot = this.flying;

@@ -648,3 +648,8 @@ body { background: radial-gradient(ellipse at 50% 35%, #3c6854, #102b27 80%); }
   #hud #coach-line { font-size: 9.5px; min-height: 22px; line-height: 1.15; }
   #hud .level-label strong { font-size: 13px; }
 }
+
+/* Bramble keeps the corner; the earned flower tucks beside him. */
+#bloom-shot { left: 24%; width: max(14%, 44px); min-height: 44px; top: 81.7%; border-radius: 12px; padding: 3px 2px; }
+#bloom-shot span { font-size: 20px; }
+#bloom-shot strong { font-size: max(8px, 2.2cqw); line-height: 1.15; }
