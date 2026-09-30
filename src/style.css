@@ -606,7 +606,7 @@ body { background: radial-gradient(ellipse at 50% 35%, #3c6854, #102b27 80%); }
 #star-target { top: 15.5%; color: #57714f; font-size: max(10px, 2.6cqw); letter-spacing: .2px; }
 #hud .mechanic-status {
   position: absolute; top: 17.5%; left: 7%; right: 7%; width: auto; max-width: none; margin: 0;
-  flex-wrap: nowrap; justify-content: center; gap: 3px; overflow-x: auto; scrollbar-width: none;
+  flex-wrap: nowrap; justify-content: safe center; gap: 3px; overflow-x: auto; scrollbar-width: none;
 }
 #hud .mechanic-status::-webkit-scrollbar { display: none; }
 #hud .mechanic-chip { flex: 0 0 auto; min-height: 23px; padding: 3px 6px; border-color: #bccbac; background: #edf1dce8; color: #61724f; font-size: max(9px, 2.4cqw); }

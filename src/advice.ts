@@ -37,7 +37,7 @@ export function suggestShot(engine: GameEngine) {
 
 export function coaching(engine: GameEngine): string {
   if (engine.bloomArmed) return 'Bloom equipped · tap its flower again to cancel';
-  if (engine.armedBooster) return 'Gift equipped · tap its button again to cancel';
+  if (engine.armedBooster) return 'Gift ready · tap its label above to cancel';
   if (engine.bloomUnlocked && engine.bloomCharge === engine.bloomGoal) return '✿ Bloom ready · tap the flower to equip';
   if (engine.flightPath) return 'Clear the dotted route for Mabel';
   if (engine.level.wind) return `Breeze in ${2 - engine.turns % 2} shots · Swap costs no turns`;

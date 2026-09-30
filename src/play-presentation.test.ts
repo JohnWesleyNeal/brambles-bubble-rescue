@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { giftReadout, nextBubblePoint } from './play-presentation';
 import { launcherPoint, aimCancelRadius } from './aim-controls';
+import { GameEngine } from './engine';
+import { levels } from './levels';
+import { coaching } from './advice';
 describe('quiet shooting dock', () => {
   const inventory = { rainbow: 2, double: 3, bonk: 4 };
   it('counts only unlocked gifts and keeps a free refill discoverable', () => {
@@ -12,6 +15,11 @@ describe('quiet shooting dock', () => {
   it('shows the equipped gift and respects challenge restrictions', () => {
     expect(giftReadout(inventory, 8, true, 'rainbow')).toMatchObject({ text: 'Ready', equipped: true, label: expect.stringContaining('Rainbow Pop equipped') });
     expect(giftReadout(inventory, 8, false)).toMatchObject({ text: 'Off', equipped: false });
+  });
+  it('points equipped-shot coaching at the visible cancel label', () => {
+    const engine = new GameEngine(levels[0]);
+    engine.armBooster('rainbow');
+    expect(coaching(engine)).toBe('Gift ready · tap its label above to cancel');
   });
   it('keeps Next outside the unchanged launcher cancellation target', () => {
     expect(launcherPoint).toEqual({ x: 195, y: 690 });
