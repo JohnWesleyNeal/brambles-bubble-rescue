@@ -938,7 +938,7 @@ function updateHud(current: PlayScene): void {
   bloomButton.setAttribute('aria-pressed', String(engine.bloomArmed));
   bloomButton.setAttribute('aria-label', engine.bloomArmed ? 'Cancel earned Bloom shot' : `Equip earned Bloom shot, ${engine.bloomCharge} of ${engine.bloomGoal} bubbles cleared`);
   bloomButton.title = 'Clear 12 bubbles to grow Bloom. Hit a colored bubble to burst it and its colored neighbors.';
-  bloomButton.innerHTML = `<span>✿</span><strong>${engine.bloomArmed ? 'Cancel Bloom' : engine.bloomCharge >= engine.bloomGoal ? 'Bloom ready' : `Bloom ${engine.bloomCharge}/${engine.bloomGoal}`}</strong>`;
+  bloomButton.innerHTML = `<span>✿</span><strong>${engine.bloomArmed ? 'Cancel' : engine.bloomCharge >= engine.bloomGoal ? 'Ready' : `${engine.bloomCharge}/${engine.bloomGoal}`}</strong>`;
   bloomButton.style.setProperty('--bloom-fill', `${engine.bloomCharge / engine.bloomGoal * 100}%`);
   const chips: string[] = [];
   if (engine.flightPath) chips.push(`<span class="mechanic-chip">🐝 Path ${Math.min(engine.flightStep, engine.flightPath.length)}/${engine.flightPath.length}</span>`);
