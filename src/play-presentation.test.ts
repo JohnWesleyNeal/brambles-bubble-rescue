@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brambleIdlePose, brambleMotionAllowed, giftReadout, nextBubblePoint } from './play-presentation';
+import { brambleIdlePose, brambleMotionAllowed, brambleTossPose, giftReadout, nextBubblePoint } from './play-presentation';
 import { launcherPoint, aimCancelRadius } from './aim-controls';
 import { GameEngine } from './engine';
 import { levels } from './levels';
@@ -48,5 +48,33 @@ describe('Bramble’s quiet company', () => {
     }
     expect(brambleIdlePose(4750).blink).toBe(true);
     expect(brambleIdlePose(4950).blink).toBe(false);
+  });
+});
+
+describe('Bramble at the launcher', () => {
+  it('cups the loaded bubble and follows the aim without moving its origin', () => {
+    expect(brambleTossPose(0)).toEqual({ handX: 195, handY: 711, lean: 0, lift: 0 });
+    expect(brambleTossPose(1).handX).toBeLessThan(195);
+    expect(brambleTossPose(-1).handX).toBeGreaterThan(195);
+    expect(launcherPoint).toEqual({ x: 195, y: 690 });
+  });
+  it('lifts through release and recovers to the ready pose', () => {
+    expect(brambleTossPose(0, 0)).toEqual(brambleTossPose(0));
+    expect(brambleTossPose(0, 180).handY).toBe(685);
+    expect(brambleTossPose(0, 180).lift).toBe(2.5);
+    expect(brambleTossPose(0, 360).handY).toBeCloseTo(711);
+  });
+  it('keeps all paw poses clear of the board and Next bubble', () => {
+    for (const angle of [-2, -1.25, 0, 1.25, 2]) for (let time = 0; time <= 360; time += 20) {
+      const pose = brambleTossPose(angle, time);
+      expect(pose.handX).toBeGreaterThanOrEqual(185);
+      expect(pose.handX).toBeLessThanOrEqual(205);
+      expect(pose.handY).toBeGreaterThan(680);
+      expect(pose.handY).toBeLessThanOrEqual(711);
+      expect(pose.handX + 10).toBeLessThan(nextBubblePoint.x - 24);
+    }
+  });
+  it('keeps the whole launch gesture still with reduced motion', () => {
+    for (const angle of [-1, 0, 1]) for (const time of [0, 90, 180, 360]) expect(brambleTossPose(angle, time, true)).toEqual({ handX: 195, handY: 711, lean: 0, lift: 0 });
   });
 });

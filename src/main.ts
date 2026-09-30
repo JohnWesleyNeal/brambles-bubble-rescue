@@ -10,7 +10,7 @@ import { consumeBooster, loadSave, recordLoss, recordWin, recordMastery, refillG
 import { restoreActiveRun, type RestoredRun, type RunAction } from './run';
 import type { ShotTrace } from './shot';
 import './style.css';
-import { brambleIdlePose, brambleMotionAllowed, giftReadout, nextBubblePoint } from './play-presentation';
+import { brambleIdlePose, brambleMotionAllowed, brambleTossPose, giftReadout, nextBubblePoint } from './play-presentation';
 import { coaching, suggestShot } from './advice';
 import { activityLevel, activityUnlocked, bossPhases, challengeFor, type Activity } from './activities';
 import { recordActivityResult } from './activity-progress';
@@ -111,7 +111,9 @@ class PlayScene extends Phaser.Scene {
   private blink?: Phaser.GameObjects.Image;
   private brambleClock = 0;
   private brambleMotion = 0;
-  private brambleSize = { width: 54, height: 56 };
+  private brambleSize = { width: 92, height: 96 };
+  private brambleArms?: Phaser.GameObjects.Graphics;
+  private brambleThrowMs?: number;
   private monty?: Phaser.GameObjects.Image;
   private trailClock = 0;
   private sparkleBudget = 0;
@@ -143,6 +145,8 @@ class PlayScene extends Phaser.Scene {
     this.load.image('bee', `${BASE}bee.png`);
     this.load.image('bee-body', `${BASE}bee-body.png`);
     this.load.image('bramble-blink', `${BASE}bramble-blink.png`);
+    this.load.image('bramble-launcher', `${BASE}bramble-launcher.png`);
+    this.load.image('bramble-launcher-blink', `${BASE}bramble-launcher-blink.png`);
   }
   create(): void {
     this.makeBubbleTextures();
@@ -371,23 +375,17 @@ class PlayScene extends Phaser.Scene {
     nextWell.fillStyle(0xe6e9cf, .8).fillCircle(nextBubblePoint.x, nextBubblePoint.y + 1, 24);
     nextWell.lineStyle(1, 0xb6c4a5, .65).strokeCircle(nextBubblePoint.x, nextBubblePoint.y + 1, 24);
     this.sceneryLayer.add(nextWell);
-    const hasBloom = Boolean(this.engine?.bloomUnlocked);
     this.brambleClock = 0;
     this.brambleMotion = 0;
-    this.brambleSize = hasBloom ? { width: 40, height: 42 } : { width: 54, height: 56 };
-    this.bramble = this.add.image(hasBloom ? 46 : 65, 710, 'bramble').setDisplaySize(this.brambleSize.width, this.brambleSize.height);
-    this.blink = this.add.image(hasBloom ? 46 : 65, 710, 'bramble-blink').setDisplaySize(this.brambleSize.width, this.brambleSize.height).setVisible(false);
-    this.sceneryLayer.add([this.bramble, this.blink]);
-    const sling = this.add.graphics();
-    sling.fillStyle(0x7a6845, .14).fillEllipse(195, 735, 58, 13);
-    sling.fillStyle(0x855637).fillRoundedRect(184, 701, 22, 35, 9);
-    sling.fillStyle(0xca9760).fillRoundedRect(188, 701, 14, 32, 6);
-    sling.lineStyle(2, 0xe8bd83, .8).lineBetween(191, 710, 191, 725);
-    sling.lineStyle(5, 0x855637).beginPath().moveTo(182, 687).lineTo(186, 701).lineTo(204, 701).lineTo(208, 687).strokePath();
-    sling.lineStyle(2, 0xe4b77d).lineBetween(183, 687, 207, 687);
-    sling.fillStyle(0x638569).fillEllipse(207, 720, 15, 7);
-    sling.lineStyle(1, 0xdce5b9, .8).lineBetween(202, 722, 212, 718);
-    this.sceneryLayer.add(sling);
+    this.brambleThrowMs = undefined;
+    this.brambleSize = { width: 92, height: 96 };
+    const ground = this.add.graphics();
+    ground.fillStyle(0x7a6845, .11).fillEllipse(127, 734, 84, 8);
+    this.brambleArms = this.add.graphics();
+    this.bramble = this.add.image(127, 694, 'bramble-launcher').setDisplaySize(this.brambleSize.width, this.brambleSize.height);
+    this.blink = this.add.image(127, 694, 'bramble-launcher-blink').setDisplaySize(this.brambleSize.width, this.brambleSize.height).setVisible(false);
+    this.sceneryLayer.add([ground, this.brambleArms, this.bramble, this.blink]);
+    this.animateBramble(0);
     if (this.engine?.activity?.kind === 'boss') {
       this.monty = this.add.image(73, 555, 'magpie').setDisplaySize(110, 110);
       this.sceneryLayer.add(this.monty);
@@ -691,6 +689,7 @@ class PlayScene extends Phaser.Scene {
     if (!this.engine || this.flying || this.resolving || this.engine.won || this.engine.lost || !overlay.classList.contains('hidden')) return;
     if (!this.engine.canFire(this.aimAngle)) { notice(this.engine.bloomArmed ? 'Aim Bloom at a colored bubble. Honeycomb blocks it.' : this.engine.armedBooster?.id === 'rainbow' ? 'Aim at a colored bubble. Honeycomb blocks Rainbow.' : 'Aim Bonk at a tile first.'); return; }
     const trace = this.engine.preview(this.aimAngle);
+    this.brambleThrowMs = 0;
     this.flying = { trace, index: 0, angle: this.aimAngle, sprite: this.makeShotBubble(195, 690) };
     if (!reducedMotion.matches) this.tweens.add({ targets: this.shooterBubble, y: 697, scaleY: .85, duration: 80, yoyo: true });
     this.shooterBubble?.setAlpha(.3);
@@ -713,17 +712,43 @@ class PlayScene extends Phaser.Scene {
     if (shot.index >= shot.trace.path.length - 1) this.land();
   }
   private animateBramble(delta: number): void {
-    if (!this.engine || !this.bramble?.active || !this.blink?.active) return;
-    const allowed = brambleMotionAllowed({ aiming: this.aiming, menuOpen: !overlay.classList.contains('hidden'), pageHidden: document.hidden, reducedMotion: reducedMotion.matches });
+    if (!this.engine || !this.bramble?.active || !this.blink?.active || !this.brambleArms?.active) return;
+    const menuOpen = !overlay.classList.contains('hidden');
+    const allowed = brambleMotionAllowed({ aiming: this.aiming, menuOpen, pageHidden: document.hidden, reducedMotion: reducedMotion.matches });
     const step = Math.min(delta, 50);
     if (allowed) this.brambleClock += step;
-    this.brambleMotion = reducedMotion.matches ? 0 : Phaser.Math.Clamp(this.brambleMotion + (allowed ? step / 220 : -step / 140), 0, 1);
-    const pose = brambleIdlePose(this.brambleClock, this.brambleMotion);
-    for (const image of [this.bramble, this.blink]) {
-      image.setY(710 - pose.rise).setAngle(pose.angle).setDisplaySize(this.brambleSize.width * pose.scaleX, this.brambleSize.height * pose.scaleY);
+    if (this.brambleThrowMs !== undefined && !menuOpen) {
+      this.brambleThrowMs += step;
+      if (this.brambleThrowMs >= 360) this.brambleThrowMs = undefined;
     }
-    this.blink.setVisible(allowed && pose.blink);
+    this.brambleMotion = reducedMotion.matches ? 0 : Phaser.Math.Clamp(this.brambleMotion + (allowed ? step / 220 : -step / 140), 0, 1);
+    const idle = brambleIdlePose(this.brambleClock, this.brambleMotion);
+    const toss = brambleTossPose(this.aimAngle, this.brambleThrowMs, reducedMotion.matches || menuOpen);
+    const angle = idle.angle + toss.lean;
+    const center = { x: 127, y: 694 - idle.rise - toss.lift };
+    const width = this.brambleSize.width * idle.scaleX;
+    const height = this.brambleSize.height * idle.scaleY;
+    for (const image of [this.bramble, this.blink]) image.setPosition(center.x, center.y).setAngle(angle).setDisplaySize(width, height);
+    this.blink.setVisible(allowed && idle.blink);
     this.bramble.setVisible(!this.blink.visible);
+    const shoulder = (x: number, y: number) => {
+      const radians = angle * Math.PI / 180;
+      const dx = (x - 110) * width / 220, dy = (y - 115) * height / 230;
+      return { x: center.x + dx * Math.cos(radians) - dy * Math.sin(radians), y: center.y + dx * Math.sin(radians) + dy * Math.cos(radians) };
+    };
+    const arms = this.brambleArms;
+    arms.clear();
+    const arm = (from: { x: number; y: number }, bend: { x: number; y: number }, paw: { x: number; y: number }, holding: boolean) => {
+      arms.lineStyle(13, 0x202e2b).beginPath().moveTo(from.x, from.y).lineTo(bend.x, bend.y).lineTo(paw.x, paw.y).strokePath();
+      arms.fillStyle(0x202e2b).fillCircle(bend.x, bend.y, 6.5).fillEllipse(paw.x, paw.y, holding ? 20 : 14, 13);
+      arms.lineStyle(9, 0x3d4b42).beginPath().moveTo(from.x, from.y).lineTo(bend.x, bend.y).lineTo(paw.x, paw.y).strokePath();
+      arms.fillStyle(0x3d4b42).fillCircle(bend.x, bend.y, 4.5).fillEllipse(paw.x, paw.y, holding ? 16 : 10, 9);
+      if (holding) {
+        arms.lineStyle(1.3, 0x91a087, .8).lineBetween(paw.x - 5, paw.y - 1, paw.x - 2, paw.y - 1).lineBetween(paw.x + 1, paw.y - 1, paw.x + 4, paw.y - 1);
+      }
+    };
+    arm(shoulder(48, 156), { x: 92, y: 722 - idle.rise }, { x: 86, y: 728 - idle.rise - toss.lift * .5 }, false);
+    arm(shoulder(173, 154), { x: 171, y: 719 - toss.lift }, { x: toss.handX, y: toss.handY }, true);
   }
 
   private land(): void {
