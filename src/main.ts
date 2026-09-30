@@ -393,9 +393,6 @@ class PlayScene extends Phaser.Scene {
       this.sceneryLayer.add(this.monty);
       if (!reducedMotion.matches) this.tweens.add({ targets: this.monty, angle: { from: -3, to: 3 }, duration: 1800, yoyo: true, repeat: -1 });
     }
-    this.sceneryLayer.add(this.add.text(290, 756, 'NEXT', {
-      fontFamily: 'Trebuchet MS, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#285a4d', letterSpacing: 1
-    }).setOrigin(.5));
   }
 
   private makeBubbleTextures(): void {
@@ -627,7 +624,7 @@ class PlayScene extends Phaser.Scene {
     this.aimGraphics.clear();
     if (!this.engine || this.flying || this.resolving || this.inspectMode || this.engine.won || this.engine.lost || this.engine.awaitingTopUp) return;
     if (this.engine.guideHidden) {
-      this.aimGraphics.lineStyle(3, 0xfff4cf, .85).lineBetween(195 + Math.sin(this.aimAngle) * 24, 690 - Math.cos(this.aimAngle) * 24, 195 + Math.sin(this.aimAngle) * 62, 690 - Math.cos(this.aimAngle) * 62);
+      this.aimGraphics.lineStyle(3, 0x577d61, .85).lineBetween(195 + Math.sin(this.aimAngle) * 24, 690 - Math.cos(this.aimAngle) * 24, 195 + Math.sin(this.aimAngle) * 62, 690 - Math.cos(this.aimAngle) * 62);
       this.drawAimCancelTarget();
       return;
     }
@@ -635,7 +632,7 @@ class PlayScene extends Phaser.Scene {
       const points = shortAimPoints(this.aimAngle);
       points.forEach((point, index) => {
         if (index === 0) return;
-        this.aimGraphics.fillStyle(0xffffff, Math.max(.28, .78 - index * .055));
+        this.aimGraphics.fillStyle(0x577d61, Math.max(.28, .72 - index * .045));
         this.aimGraphics.fillCircle(point.x, point.y, index === points.length - 1 ? 3.4 : 2.8);
       });
       this.drawAimCancelTarget();
@@ -644,7 +641,7 @@ class PlayScene extends Phaser.Scene {
     const trace = this.engine.preview(this.aimAngle);
     for (let i = 4; i < trace.path.length; i += 5) {
       const point = trace.path[i];
-      this.aimGraphics.fillStyle(0xffffff, Math.max(.18, .78 - i * .003));
+      this.aimGraphics.fillStyle(0x577d61, Math.max(.24, .78 - i * .003));
       this.aimGraphics.fillCircle(point.x, point.y, i < 45 ? 3.3 : 2.5);
     }
     if (this.engine.bloomArmed) {
@@ -946,7 +943,6 @@ function updateHud(current: PlayScene): void {
   document.querySelector('#gift-count')!.textContent = gift.text;
   const giftButton = document.querySelector<HTMLButtonElement>('#bag-button')!;
   giftButton.setAttribute('aria-label', gift.label);
-  giftButton.setAttribute('aria-pressed', String(gift.equipped));
   giftButton.classList.toggle('equipped', gift.equipped);
   mechanicStatus.innerHTML = chips.join('');
   mechanicStatus.classList.toggle('hidden', chips.length === 0);
