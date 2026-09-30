@@ -45,5 +45,5 @@ export function coaching(engine: GameEngine): string {
   if (engine.level.id === 3 || engine.level.id === 4) return 'Cut a support · hanging bubbles fall';
   if (engine.level.id === 6) return 'Bounce off a wall · follow the dotted guide';
   if (engine.shots <= 3) return 'Need a hand? Gifts refills are free';
-  return 'Drag to aim · release to pop';
+  return 'Drag to aim · release to pop · pull back to cancel';
 }

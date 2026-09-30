@@ -19,6 +19,7 @@ import { gardenArt } from './garden';
 import { friends, friendsCards, styleChoices, gardenStyles, masteryLabels } from './friends';
 import { showSaveScreen } from './save-screen';
 import { lessonDemo, lessonFor } from './lessons';
+import { AimGesture, isAimCancelPoint, loadAimGuideMode, shortAimPoints, storeAimGuideMode, type AimGuideMode } from './aim-controls';
 
 registerSW({ immediate: true });
 const BASE = import.meta.env.BASE_URL;
@@ -50,8 +51,10 @@ const levelNumber = document.querySelector<HTMLElement>('#level-number')!;
 const levelName = document.querySelector<HTMLElement>('#level-name')!;
 const muteButton = document.querySelector<HTMLButtonElement>('#mute-button')!;
 const mechanicStatus = document.querySelector<HTMLElement>('#mechanic-status')!;
+const coachLine = document.querySelector<HTMLElement>('#coach-line')!;
 const inspectBar = document.querySelector<HTMLDivElement>('#inspect-bar')!;
 const toast = document.querySelector<HTMLDivElement>('#toast')!;
+let aimGuideMode: AimGuideMode = loadAimGuideMode();
 let toastTimer: number | undefined;
 function notice(message: string): void {
   toast.textContent = message;
@@ -109,6 +112,8 @@ class PlayScene extends Phaser.Scene {
   private trailClock = 0;
   private sparkleBudget = 0;
   private aiming = false;
+  private aimGesture = new AimGesture();
+  private cancelAimVisible = false;
   private resolving = false;
   private aimAngle = 0;
   private flying?: { trace: ShotTrace; index: number; sprite: Phaser.GameObjects.Container; angle: number };
@@ -142,18 +147,31 @@ class PlayScene extends Phaser.Scene {
     this.aimGraphics = this.add.graphics();
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.inspectMode) { this.inspectAt(pointer.x, pointer.y); return; }
-      if (!this.engine || this.engine.won || this.engine.lost || this.engine.awaitingTopUp || this.flying || this.resolving || pointer.y < 145 || pointer.y > 775) return;
+      if (!this.engine || this.engine.won || this.engine.lost || this.engine.awaitingTopUp || this.flying || this.resolving || !overlay.classList.contains('hidden') || pointer.y < 145 || pointer.y > 775 || !this.aimGesture.begin(pointer.id)) return;
       this.aiming = true;
       this.setAim(pointer.x, pointer.y);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       if (!this.engine || this.flying || this.resolving || this.inspectMode) return;
-      if (pointer.event instanceof MouseEvent || this.aiming) this.setAim(pointer.x, pointer.y);
+      if (this.aiming ? this.aimGesture.matches(pointer.id) : pointer.event instanceof MouseEvent) this.setAim(pointer.x, pointer.y);
     });
-    this.input.on('pointerup', () => {
-      if (this.aiming) { this.aiming = false; this.fire(); }
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      const outcome = this.aimGesture.release(pointer.id, { x: pointer.x, y: pointer.y });
+      if (outcome === 'ignore') return;
+      this.aiming = false;
+      this.cancelAimVisible = false;
+      if (outcome === 'fire' && overlay.classList.contains('hidden')) {
+        this.setAim(pointer.x, pointer.y);
+        this.fire();
+      } else this.drawAim();
+      this.syncAimCoach();
     });
-    this.input.on('pointerupoutside', () => { this.aiming = false; });
+    this.input.on('pointerupoutside', () => this.cancelAim());
+    this.game.canvas.addEventListener('pointercancel', () => this.cancelAim());
+    window.addEventListener('blur', () => this.cancelAim());
+    window.addEventListener('keydown', (event) => { if (event.key === 'Escape') this.cancelAim(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.cancelAim(); });
+    this.scale.on('resize', () => this.cancelAim());
     if (this.pendingLevel !== undefined) {
       const { index, restored } = this.pendingLevel;
       this.pendingLevel = undefined;
@@ -174,7 +192,6 @@ class PlayScene extends Phaser.Scene {
     this.saveAttempt();
     storeSave(save);
     this.setInspectMode(false);
-    this.aiming = false;
     this.resolving = false;
     this.aimAngle = 0;
     this.flying?.sprite.destroy();
@@ -196,7 +213,6 @@ class PlayScene extends Phaser.Scene {
     this.pendingAction = undefined;
     this.engine = undefined;
     this.setInspectMode(false);
-    this.aiming = false;
     this.flying?.sprite.destroy();
     this.flying = undefined;
     this.sceneryLayer?.removeAll(true);
@@ -282,7 +298,7 @@ class PlayScene extends Phaser.Scene {
   }
   setInspectMode(enabled: boolean): void {
     this.inspectMode = enabled;
-    this.aiming = false;
+    this.cancelAim();
     inspectBar.classList.toggle('hidden', !enabled);
     this.aimGraphics?.clear();
     if (!enabled && this.aimGraphics) this.drawAim();
@@ -304,6 +320,22 @@ class PlayScene extends Phaser.Scene {
     notice('Tap a bubble or the marked wind strip.');
   }
   getLevelIndex(): number { return this.levelIndex; }
+
+  cancelAim(): void {
+    if (!this.aimGesture.cancel()) return;
+    this.aiming = false;
+    this.cancelAimVisible = false;
+    this.drawAim();
+    this.syncAimCoach();
+  }
+
+  syncAimCoach(): void {
+    if (!this.engine) return;
+    coachLine.textContent = this.aiming
+      ? this.cancelAimVisible ? 'Release to cancel · keep dragging to aim' : 'Pull back to the launcher to cancel'
+      : coaching(this.engine);
+  }
+  refreshAimGuide(): void { this.drawAim(); }
 
   private drawScenery(): void {
     this.sceneryLayer.removeAll(true);
@@ -545,13 +577,26 @@ class PlayScene extends Phaser.Scene {
   }
   private setAim(x: number, y: number): void {
     this.aimAngle = Phaser.Math.Clamp(Math.atan2(x - 195, 690 - y), -1.25, 1.25);
+    this.cancelAimVisible = this.aiming && isAimCancelPoint({ x, y });
     this.drawAim();
+    this.syncAimCoach();
   }
   private drawAim(): void {
     this.aimGraphics.clear();
     if (!this.engine || this.flying || this.resolving || this.inspectMode || this.engine.won || this.engine.lost || this.engine.awaitingTopUp) return;
     if (this.engine.guideHidden) {
       this.aimGraphics.lineStyle(3, 0xfff4cf, .85).lineBetween(195 + Math.sin(this.aimAngle) * 24, 690 - Math.cos(this.aimAngle) * 24, 195 + Math.sin(this.aimAngle) * 62, 690 - Math.cos(this.aimAngle) * 62);
+      this.drawAimCancelTarget();
+      return;
+    }
+    if (aimGuideMode === 'short') {
+      const points = shortAimPoints(this.aimAngle);
+      points.forEach((point, index) => {
+        if (index === 0) return;
+        this.aimGraphics.fillStyle(0xffffff, Math.max(.28, .78 - index * .055));
+        this.aimGraphics.fillCircle(point.x, point.y, index === points.length - 1 ? 3.4 : 2.8);
+      });
+      this.drawAimCancelTarget();
       return;
     }
     const trace = this.engine.preview(this.aimAngle);
@@ -596,9 +641,15 @@ class PlayScene extends Phaser.Scene {
         this.aimGraphics.lineStyle(2.5, 0xd2f8ff, .95).strokeCircle(dew.x, dew.y, 21);
       }
     }
+    this.drawAimCancelTarget();
+  }
+  private drawAimCancelTarget(): void {
+    if (!this.aiming || !this.cancelAimVisible) return;
+    this.aimGraphics.fillStyle(0x57a57b, .22).fillCircle(195, 690, 48);
+    this.aimGraphics.lineStyle(3.5, 0x2f805d, .98).strokeCircle(195, 690, 48);
   }
   private fire(): void {
-    if (!this.engine || this.flying || this.resolving || this.engine.won || this.engine.lost) return;
+    if (!this.engine || this.flying || this.resolving || this.engine.won || this.engine.lost || !overlay.classList.contains('hidden')) return;
     if (!this.engine.canFire(this.aimAngle)) { notice(this.engine.bloomArmed ? 'Aim Bloom at a colored bubble. Honeycomb blocks it.' : this.engine.armedBooster?.id === 'rainbow' ? 'Aim at a colored bubble. Honeycomb blocks Rainbow.' : 'Aim Bonk at a tile first.'); return; }
     const trace = this.engine.preview(this.aimAngle);
     this.flying = { trace, index: 0, angle: this.aimAngle, sprite: this.makeShotBubble(195, 690) };
@@ -814,6 +865,8 @@ new Phaser.Game({
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 390, height: 844 },
   render: { antialias: true, pixelArt: false }, scene: [scene]
 });
+const modalAimGuard = new MutationObserver(() => { if (!overlay.classList.contains('hidden')) scene.cancelAim(); });
+modalAimGuard.observe(overlay, { attributes: true, attributeFilter: ['class'], childList: true });
 
 function updateHud(current: PlayScene): void {
   const engine = current.engine;
@@ -821,7 +874,7 @@ function updateHud(current: PlayScene): void {
   levelNumber.textContent = engine.activity?.kind === 'boss' ? `BOSS ${engine.activity.phase + 1}/3` : String(current.getLevelIndex() + 1).padStart(2, '0');
   levelName.textContent = engine.level.name;
   shotsCount.textContent = String(engine.shots);
-  document.querySelector('#coach-line')!.textContent = coaching(engine);
+  current.syncAimCoach();
   document.querySelector('#star-target')!.textContent = engine.activity ? engine.activity.kind === 'boss' ? engine.bossReadout ?? 'Monty’s picnic heist' : engine.challengeRelaxed ? 'Practice · no medal this time' : engine.challenge?.bankGoal ? `Bank rescues ${engine.bankBees}/${engine.challenge.bankGoal}` : `${engine.turns} shots taken` : `★ ★ ★ in ${engine.level.par} shots · taken ${engine.turns}`;
   beesCount.textContent = `${current.displayedBees}/${engine.totalBees}`;
   const bloomButton = document.querySelector<HTMLButtonElement>('#bloom-shot')!;
@@ -868,9 +921,10 @@ function showPause(): void {
   const engine = scene.engine;
   if (!engine || engine.won || engine.lost) return;
   if (scene.deferUntilReady(showPause)) return;
+  scene.cancelAim();
   scene.setInspectMode(false);
   overlay.className = 'overlay result-overlay';
-  overlay.innerHTML = `<div class="result-card pause-card" role="dialog" aria-label="Paused game"><span class="eyebrow">A LITTLE BREATHER</span><h2>${escapeHtml(engine.level.name)}</h2><p>${engine.freedBees} of ${engine.totalBees} bee friends home · ${engine.shots} bubbles left</p><div class="pause-saved">✦ Your board and next bubbles are saved automatically.</div><button id="pause-continue" class="primary-button">Keep playing <span>➜</span></button><button id="pause-restart" class="secondary-button">Restart this level</button><div class="result-links"><button id="pause-rules" class="text-button">Rules</button><button id="pause-bag" class="text-button">Gifts ✿</button><button id="pause-sound" class="text-button">Sound ${save.muted ? 'off' : 'on'}</button></div>${engine.activity?.kind === 'challenge' && !engine.challengeRelaxed ? '<button id="pause-relax" class="secondary-button">Continue as normal · no medal</button>' : ''}<button id="pause-save" class="text-button">My Garden & saves</button><button id="pause-home" class="text-button">Return to the meadows</button></div>`;
+  overlay.innerHTML = `<div class="result-card pause-card" role="dialog" aria-label="Paused game"><span class="eyebrow">A LITTLE BREATHER</span><h2>${escapeHtml(engine.level.name)}</h2><p>${engine.freedBees} of ${engine.totalBees} bee friends home · ${engine.shots} bubbles left</p><div class="pause-saved">✦ Your board and next bubbles are saved automatically.</div><button id="pause-continue" class="primary-button">Keep playing <span>➜</span></button><button id="pause-restart" class="secondary-button">Restart this level</button><div class="result-links"><button id="pause-rules" class="text-button">Rules</button><button id="pause-bag" class="text-button">Gifts ✿</button><button id="pause-sound" class="text-button">Options</button></div>${engine.activity?.kind === 'challenge' && !engine.challengeRelaxed ? '<button id="pause-relax" class="secondary-button">Continue as normal · no medal</button>' : ''}<button id="pause-save" class="text-button">My Garden & saves</button><button id="pause-home" class="text-button">Return to the meadows</button></div>`;
   overlay.querySelector<HTMLButtonElement>('#pause-continue')!.addEventListener('click', backToLevel);
   overlay.querySelector<HTMLButtonElement>('#pause-restart')!.addEventListener('click', () => {
     if (engine.turns > 0) showRestartConfirm();
@@ -1000,8 +1054,16 @@ function showTopUp(): void {
 
 function showAudio(returnTo: () => void): void {
   overlay.className = 'overlay sheet-overlay';
-  overlay.innerHTML = `<section class="sheet audio-sheet" role="dialog" aria-label="Music and sound"><div class="sheet-top"><span class="eyebrow">WOODLAND SOUNDS</span><button id="audio-close" class="sheet-close" aria-label="Close sound settings">×</button></div><h2>Make yourself cosy</h2><p class="sheet-lead">A little music, a little pop. Just how you like it.</p>${(['musicVolume', 'effectsVolume'] as const).map((key) => `<label class="volume-control">${key === 'musicVolume' ? 'Music' : 'Sound effects'} <output id="${key}-value">${Math.round(save[key] * 100)}%</output><input aria-label="${key === 'musicVolume' ? 'Music volume' : 'Sound effects volume'}" type="range" min="0" max="100" value="${Math.round(save[key] * 100)}" data-volume="${key}"></label>`).join('')}<button id="audio-mute" class="secondary-button">${save.muted ? 'Turn sound on' : 'Mute everything'}</button><p class="audio-credit">Music: <a href="https://opengameart.org/content/sunset-walk-ambient-quiet-sweet-loop" target="_blank" rel="noopener">Sunset Walk · KiluaBoy</a><br>Shared under CC0. Thank you for the lovely music.</p></section>`;
+  overlay.innerHTML = `<section class="sheet audio-sheet" role="dialog" aria-label="Sound and aiming options"><div class="sheet-top"><span class="eyebrow">A LITTLE CUSTOMISING</span><button id="audio-close" class="sheet-close" aria-label="Close options">×</button></div><h2>Sound & aiming</h2><p class="sheet-lead">Choose how much of the shot Bramble previews.</p><fieldset class="aim-guide-setting"><legend>Aim guide</legend><div class="aim-guide-choices"><button type="button" class="aim-guide-choice" data-aim-guide="short" aria-pressed="${aimGuideMode === 'short'}">Short aim</button><button type="button" class="aim-guide-choice" data-aim-guide="full" aria-pressed="${aimGuideMode === 'full'}">Full assist</button></div><p id="aim-guide-status" aria-live="polite">${aimGuideMode === 'short' ? 'A short direction stem, without the landing preview.' : 'Shows the full dotted path, landing point and match preview.'}</p></fieldset>${(['musicVolume', 'effectsVolume'] as const).map((key) => `<label class="volume-control">${key === 'musicVolume' ? 'Music' : 'Sound effects'} <output id="${key}-value">${Math.round(save[key] * 100)}%</output><input aria-label="${key === 'musicVolume' ? 'Music volume' : 'Sound effects volume'}" type="range" min="0" max="100" value="${Math.round(save[key] * 100)}" data-volume="${key}"></label>`).join('')}<button id="audio-mute" class="secondary-button">${save.muted ? 'Turn sound on' : 'Mute everything'}</button><p class="audio-credit">Music: <a href="https://opengameart.org/content/sunset-walk-ambient-quiet-sweet-loop" target="_blank" rel="noopener">Sunset Walk · KiluaBoy</a><br>Shared under CC0. Thank you for the lovely music.</p></section>`;
   overlay.querySelector('#audio-close')!.addEventListener('click', returnTo);
+  overlay.querySelectorAll<HTMLButtonElement>('[data-aim-guide]').forEach((button) => button.addEventListener('click', () => {
+    const mode = button.dataset.aimGuide as AimGuideMode;
+    aimGuideMode = mode;
+    const saved = storeAimGuideMode(mode);
+    overlay.querySelectorAll<HTMLButtonElement>('[data-aim-guide]').forEach((choice) => choice.setAttribute('aria-pressed', String(choice.dataset.aimGuide === mode)));
+    overlay.querySelector<HTMLElement>('#aim-guide-status')!.textContent = `${mode === 'short' ? 'A short direction stem, without the landing preview.' : 'The full path, landing point and match preview.'}${saved ? ' Saved for this browser.' : ' This browser could not save the choice.'}`;
+    scene.refreshAimGuide();
+  }));
   overlay.querySelector('#audio-mute')!.addEventListener('click', () => {
     save.muted = !save.muted;
     if (!save.muted && !save.musicVolume && !save.effectsVolume) { save.musicVolume = .22; save.effectsVolume = .5; }
@@ -1120,7 +1182,7 @@ function showHome(): void {
   const progress = Math.round(complete / levels.length * 100);
   overlay.innerHTML = `<div class="home-header"><span class="eyebrow">A LITTLE ADVENTURE FOR YOU</span><h1>Bramble’s<br><em>Bubble Rescue</em></h1><p>Pop bubbles. Free little friends. Make someone smile.</p></div>
     <img class="hero-art" src="${BASE}bramble.svg" alt="Bramble the friendly honey badger" />
-    <div class="home-panel"><div class="dedication">${escapeHtml(gameContent.opening)}</div><button id="primary-play" class="primary-button">${pausedIndex !== undefined ? `Resume · Level ${next + 1}` : complete === levels.length ? 'Play again' : `Continue · Level ${next + 1}`} <span>➜</span></button>${pausedIndex !== undefined ? '<div class="paused-note">Your in-progress meadow is right where you left it.</div>' : ''}<button id="choose-level" class="secondary-button">Choose a level</button><button id="home-adventures" class="secondary-button adventure-link">Side adventures</button><div class="home-quick-actions"><button id="home-garden">My Garden</button><button id="home-bag">Gifts</button><button id="home-audio">Sound</button><button id="home-rules">Rules</button></div><div class="journey-progress">${complete} of 30 meadows complete</div><div class="progress-track" role="progressbar" aria-valuenow="${complete}" aria-valuemin="0" aria-valuemax="30" aria-label="Meadows complete"><span style="width:${progress}%"></span></div></div>
+    <div class="home-panel"><div class="dedication">${escapeHtml(gameContent.opening)}</div><button id="primary-play" class="primary-button">${pausedIndex !== undefined ? `Resume · Level ${next + 1}` : complete === levels.length ? 'Play again' : `Continue · Level ${next + 1}`} <span>➜</span></button>${pausedIndex !== undefined ? '<div class="paused-note">Your in-progress meadow is right where you left it.</div>' : ''}<button id="choose-level" class="secondary-button">Choose a level</button><button id="home-adventures" class="secondary-button adventure-link">Side adventures</button><div class="home-quick-actions"><button id="home-garden">My Garden</button><button id="home-bag">Gifts</button><button id="home-audio">Options</button><button id="home-rules">Rules</button></div><div class="journey-progress">${complete} of 30 meadows complete</div><div class="progress-track" role="progressbar" aria-valuenow="${complete}" aria-valuemin="0" aria-valuemax="30" aria-label="Meadows complete"><span style="width:${progress}%"></span></div></div>
     <div class="home-footer">A cosy little game · No timers, just bubbles</div>`;
   overlay.querySelector<HTMLButtonElement>('#primary-play')!.addEventListener('click', () => beginLevel(next));
   overlay.querySelector<HTMLButtonElement>('#choose-level')!.addEventListener('click', () => showChapterSelect(Math.floor(next / 10)));
