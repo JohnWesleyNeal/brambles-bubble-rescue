@@ -691,8 +691,7 @@ class PlayScene extends Phaser.Scene {
     const trace = this.engine.preview(this.aimAngle);
     this.brambleThrowMs = 0;
     this.flying = { trace, index: 0, angle: this.aimAngle, sprite: this.makeShotBubble(195, 690) };
-    if (!reducedMotion.matches) this.tweens.add({ targets: this.shooterBubble, y: 697, scaleY: .85, duration: 80, yoyo: true });
-    this.shooterBubble?.setAlpha(.3);
+    this.shooterBubble?.setVisible(false);
     this.aimGraphics.clear();
     playSound('shoot');
   }
@@ -744,7 +743,7 @@ class PlayScene extends Phaser.Scene {
       arms.lineStyle(9, 0x3d4b42).beginPath().moveTo(from.x, from.y).lineTo(bend.x, bend.y).lineTo(paw.x, paw.y).strokePath();
       arms.fillStyle(0x3d4b42).fillCircle(bend.x, bend.y, 4.5).fillEllipse(paw.x, paw.y, holding ? 16 : 10, 9);
       if (holding) {
-        arms.lineStyle(1.3, 0x91a087, .8).lineBetween(paw.x - 5, paw.y - 1, paw.x - 2, paw.y - 1).lineBetween(paw.x + 1, paw.y - 1, paw.x + 4, paw.y - 1);
+        arms.lineStyle(1.3, 0xcacdb5, .8).lineBetween(paw.x - 5, paw.y + 2, paw.x - 2, paw.y + 2).lineBetween(paw.x + 1, paw.y + 2, paw.x + 4, paw.y + 2);
       }
     };
     arm(shoulder(48, 156), { x: 92, y: 722 - idle.rise }, { x: 86, y: 728 - idle.rise - toss.lift * .5 }, false);
