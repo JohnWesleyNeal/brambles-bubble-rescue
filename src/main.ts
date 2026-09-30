@@ -10,6 +10,7 @@ import { consumeBooster, loadSave, recordLoss, recordWin, recordMastery, refillG
 import { restoreActiveRun, type RestoredRun, type RunAction } from './run';
 import type { ShotTrace } from './shot';
 import './style.css';
+import { giftReadout, nextBubblePoint } from './play-presentation';
 import { coaching, suggestShot } from './advice';
 import { activityLevel, activityUnlocked, bossPhases, challengeFor, type Activity } from './activities';
 import { recordActivityResult } from './activity-progress';
@@ -141,6 +142,7 @@ class PlayScene extends Phaser.Scene {
     this.load.image('bramble-blink', `${BASE}bramble-blink.png`);
   }
   create(): void {
+    this.makeBubbleTextures();
     this.sceneryLayer = this.add.container(0, 0);
     this.boardLayer = this.add.container(0, 0);
     this.effectLayer = this.add.container(0, 0);
@@ -247,8 +249,8 @@ class PlayScene extends Phaser.Scene {
     this.remember({ type: 'swap' });
     this.drawShooter();
     if (!reducedMotion.matches) {
-      this.tweens.add({ targets: this.shooterBubble, x: { from: 290, to: 195 }, y: { from: 733, to: 690 }, duration: 200, ease: 'Sine.Out' });
-      this.tweens.add({ targets: this.nextBubble, x: { from: 195, to: 290 }, y: { from: 690, to: 733 }, duration: 200, ease: 'Sine.Out' });
+      this.tweens.add({ targets: this.shooterBubble, x: { from: nextBubblePoint.x, to: 195 }, y: { from: nextBubblePoint.y, to: 690 }, duration: 200, ease: 'Sine.Out' });
+      this.tweens.add({ targets: this.nextBubble, x: { from: 195, to: nextBubblePoint.x }, y: { from: 690, to: nextBubblePoint.y }, duration: 200, ease: 'Sine.Out' });
     }
     this.drawAim();
     playSound('swap');
@@ -347,29 +349,44 @@ class PlayScene extends Phaser.Scene {
     ];
     const theme = themes[chapter];
     const panel = this.add.graphics();
-    panel.fillStyle(theme.fill, .54).fillRoundedRect(19, 159, 352, 500, 28);
-    panel.lineStyle(3, 0xffffff, .55).strokeRoundedRect(19, 159, 352, 500, 28);
-    panel.lineStyle(2, theme.line, .35).strokeRoundedRect(24, 164, 342, 490, 24);
-    panel.lineStyle(2, 0x7b8665, .5).lineBetween(31, 635, 359, 635);
+    panel.fillStyle(0x234b3d, .12).fillRoundedRect(19, 164, 352, 495, 22);
+    panel.fillStyle(theme.fill, .94).fillRoundedRect(19, 159, 352, 494, 22);
+    panel.lineStyle(2, 0xfff9e5, .95).strokeRoundedRect(19, 159, 352, 494, 22);
+    panel.lineStyle(1, theme.line, .23).strokeRoundedRect(24, 164, 342, 484, 18);
+    panel.lineStyle(1, theme.line, .17).lineBetween(42, 635, 348, 635);
+    panel.fillStyle(0x244f40, .18).fillRoundedRect(19, 668, 352, 162, 23);
+    panel.fillStyle(0xfff6df, .97).fillRoundedRect(19, 664, 352, 162, 23);
+    panel.lineStyle(1.5, 0xffffff, .8).strokeRoundedRect(19, 664, 352, 162, 23);
     this.sceneryLayer.add(panel);
-    this.sceneryLayer.add(this.add.text(195, 642, `${theme.symbol}  ${theme.name}  ${theme.symbol}`, {
-      fontFamily: 'Trebuchet MS, sans-serif', fontSize: '11px', fontStyle: 'bold', color: theme.ink, letterSpacing: 1.6
-    }).setOrigin(.5, 0));
-    this.bramble = this.add.image(57, 747, 'bramble').setDisplaySize(72, 75);
-    this.blink = this.add.image(57, 747, 'bramble-blink').setDisplaySize(72, 75).setVisible(false);
+    this.sceneryLayer.add(this.add.text(195, 641, `${theme.symbol}  ${theme.name}  ${theme.symbol}`, {
+      fontFamily: 'Trebuchet MS, sans-serif', fontSize: '9px', fontStyle: 'bold', color: theme.ink, letterSpacing: 1.8
+    }).setOrigin(.5));
+    this.sceneryLayer.add(this.add.text(nextBubblePoint.x, 677, 'NEXT', {
+      fontFamily: 'Trebuchet MS, sans-serif', fontSize: '9px', fontStyle: 'bold', color: '#71826a', letterSpacing: 1.8
+    }).setOrigin(.5));
+    const nextWell = this.add.graphics();
+    nextWell.fillStyle(0xe6e9cf, .8).fillCircle(nextBubblePoint.x, nextBubblePoint.y + 1, 24);
+    nextWell.lineStyle(1, 0xb6c4a5, .65).strokeCircle(nextBubblePoint.x, nextBubblePoint.y + 1, 24);
+    this.sceneryLayer.add(nextWell);
+    this.bramble = this.add.image(65, 710, 'bramble').setDisplaySize(54, 56).setVisible(!this.engine?.bloomUnlocked);
+    this.blink = this.add.image(65, 710, 'bramble-blink').setDisplaySize(54, 56).setVisible(false);
     this.sceneryLayer.add([this.bramble, this.blink]);
-    if (!reducedMotion.matches) {
-      this.tweens.add({ targets: [this.bramble, this.blink], y: 745, duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    if (!reducedMotion.matches && !this.engine?.bloomUnlocked) {
+      this.tweens.add({ targets: [this.bramble, this.blink], y: 708, duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
       this.time.addEvent({ delay: 4200, loop: true, callback: () => {
         this.blink?.setVisible(true); this.bramble?.setVisible(false);
         this.time.delayedCall(140, () => { this.blink?.setVisible(false); this.bramble?.setVisible(true); });
       } });
     }
     const sling = this.add.graphics();
-    sling.fillStyle(0x6c492f, 1).fillEllipse(195, 738, 65, 25);
-    sling.fillStyle(0xb47741, 1).fillRoundedRect(182, 708, 26, 43, 10);
-    sling.lineStyle(5, 0x7b5634, 1).strokeRoundedRect(182, 708, 26, 43, 10);
-    sling.lineStyle(7, 0x9a653b, 1).lineBetween(195, 718, 195, 683);
+    sling.fillStyle(0x7a6845, .14).fillEllipse(195, 735, 58, 13);
+    sling.fillStyle(0x855637).fillRoundedRect(184, 701, 22, 35, 9);
+    sling.fillStyle(0xca9760).fillRoundedRect(188, 701, 14, 32, 6);
+    sling.lineStyle(2, 0xe8bd83, .8).lineBetween(191, 710, 191, 725);
+    sling.lineStyle(5, 0x855637).beginPath().moveTo(182, 687).lineTo(186, 701).lineTo(204, 701).lineTo(208, 687).strokePath();
+    sling.lineStyle(2, 0xe4b77d).lineBetween(183, 687, 207, 687);
+    sling.fillStyle(0x638569).fillEllipse(207, 720, 15, 7);
+    sling.lineStyle(1, 0xdce5b9, .8).lineBetween(202, 722, 212, 718);
     this.sceneryLayer.add(sling);
     if (this.engine?.activity?.kind === 'boss') {
       this.monty = this.add.image(73, 555, 'magpie').setDisplaySize(110, 110);
@@ -379,6 +396,37 @@ class PlayScene extends Phaser.Scene {
     this.sceneryLayer.add(this.add.text(290, 756, 'NEXT', {
       fontFamily: 'Trebuchet MS, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#285a4d', letterSpacing: 1
     }).setOrigin(.5));
+  }
+
+  private makeBubbleTextures(): void {
+    const mix = (value: number, target: number, amount: number): string => {
+      const channel = (shift: number) => Math.round(((value >> shift) & 255) * (1 - amount) + ((target >> shift) & 255) * amount);
+      return `rgb(${channel(16)},${channel(8)},${channel(0)})`;
+    };
+    for (const [color, style] of Object.entries(palette)) {
+      const key = `orb-${color}`;
+      if (this.textures.exists(key)) continue;
+      const texture = this.textures.createCanvas(key, 128, 128)!;
+      const context = texture.getContext();
+      const fill = context.createRadialGradient(44, 36, 4, 62, 62, 64);
+      fill.addColorStop(0, mix(style.fill, 0xffffff, .64));
+      fill.addColorStop(.36, mix(style.fill, 0xffffff, .20));
+      fill.addColorStop(.74, mix(style.fill, style.edge, .10));
+      fill.addColorStop(1, mix(style.fill, style.edge, .68));
+      context.fillStyle = fill;
+      context.beginPath(); context.arc(64, 64, 59, 0, Math.PI * 2); context.fill();
+      context.strokeStyle = mix(style.edge, 0xffffff, .12); context.lineWidth = 3.5; context.stroke();
+      context.beginPath(); context.arc(64, 64, 53, 0, Math.PI * 2);
+      context.strokeStyle = 'rgba(255,255,255,.40)'; context.lineWidth = 1.5; context.stroke();
+      context.beginPath(); context.arc(64, 64, 49, 3.65, 4.90);
+      context.strokeStyle = 'rgba(255,255,255,.90)'; context.lineWidth = 5; context.lineCap = 'round'; context.stroke();
+      context.beginPath(); context.ellipse(43, 37, 9, 4, -.5, 0, Math.PI * 2);
+      context.fillStyle = 'rgba(255,255,255,.65)'; context.fill();
+      context.beginPath(); context.arc(64, 64, 48, .34, 1.26);
+      context.strokeStyle = mix(style.edge, 0xffffff, .2); context.globalAlpha = .35; context.lineWidth = 4; context.stroke();
+      context.globalAlpha = 1;
+      texture.refresh();
+    }
   }
 
   private makeBubble(x: number, y: number, bubble: Bubble, radius = BUBBLE_RADIUS): Phaser.GameObjects.Container {
@@ -393,14 +441,8 @@ class PlayScene extends Phaser.Scene {
       return container;
     }
     const style = palette[bubble.color ?? 'R'];
-    container.add(this.add.circle(1.5, 3, radius + .5, 0x20443f, .16));
-    container.add(this.add.circle(0, 0, radius, style.fill).setStrokeStyle(2, style.edge, .95));
-    container.add(this.add.circle(0, 0, radius - 3).setStrokeStyle(1, 0xffffff, .28));
-    const sheen = this.add.graphics();
-    sheen.lineStyle(2, 0xffffff, .68).beginPath().arc(0, 0, radius - 4, 3.65, 4.9).strokePath();
-    sheen.lineStyle(2, style.edge, .26).beginPath().arc(0, 0, radius - 3, .35, 1.35).strokePath();
-    container.add(sheen);
-    container.add(this.add.ellipse(-radius * .29, -radius * .4, radius * .55, radius * .26, 0xffffff, .45).setRotation(-.34));
+    container.add(this.add.ellipse(1, radius * .52, radius * 1.9, radius * 1.1, 0x24443a, .17));
+    container.add(this.add.image(0, 0, `orb-${bubble.color ?? 'R'}`).setDisplaySize(radius * 2.16, radius * 2.16));
     if (bubble.kind === 'pollen') {
       for (let i = 0; i < 6; i++) {
         const angle = i * Math.PI / 3;
@@ -415,7 +457,7 @@ class PlayScene extends Phaser.Scene {
     }
     if (bubble.bee) container.add(this.add.image(0, 1, 'bee').setDisplaySize(radius * 1.4, radius * 1.4));
     else container.add(this.add.text(0, .7, style.glyph, {
-      fontFamily: 'Georgia, serif', fontSize: `${Math.round(radius * .96)}px`, fontStyle: 'bold', color: style.ink
+      fontFamily: 'Georgia, serif', fontSize: `${Math.round(radius * .96)}px`, fontStyle: 'bold', color: style.ink, stroke: '#fff8de', strokeThickness: .8
     }).setOrigin(.5));
     if (bubble.kind === 'dew') {
       container.add(this.add.circle(0, 0, radius - .5, 0xe3faff, .23).setStrokeStyle(2.2, 0xf0ffff, .95));
@@ -529,8 +571,8 @@ class PlayScene extends Phaser.Scene {
     this.nextBubble?.destroy();
     this.wildLabel?.destroy();
     if (!this.engine) return;
-    this.shooterBubble = this.makeShotBubble(195, 690, 20);
-    this.nextBubble = this.makeBubble(290, 733, normalBubble(this.engine.nextColor), 15);
+    this.shooterBubble = this.makeShotBubble(195, 690, 22);
+    this.nextBubble = this.makeBubble(nextBubblePoint.x, nextBubblePoint.y, normalBubble(this.engine.nextColor), 18);
     const label = this.engine.bloomArmed ? 'BLOOM SHOT' : this.engine.wildColor ? 'WILD SHOT' : this.engine.armedBooster ? boosterById[this.engine.armedBooster.id].name.toUpperCase() : '';
     if (label) {
       this.wildLabel = this.add.text(195, 656, label, { fontFamily: 'Trebuchet MS', fontSize: '10px', fontStyle: 'bold', color: '#fff4b3', backgroundColor: '#3c705c' }).setPadding(5, 2).setOrigin(.5);
@@ -900,16 +942,17 @@ function updateHud(current: PlayScene): void {
     const name = engine.armedBooster ? boosterById[engine.armedBooster.id].name : 'Wild shot';
     chips.push(`<button class="mechanic-chip armed" data-cancel-special="true">${escapeHtml(name)} ready ×</button>`);
   }
-  document.querySelector('#quick-boosters')!.innerHTML = boosters.map((b) => {
-    const locked = save.unlocked < b.unlockLevel || !engine.giftsAllowed;
-    const armed = engine.armedBooster?.id === b.id;
-    return `<button class="quick-booster ${b.id} ${armed ? 'equipped' : ''}" data-quick="${b.id}" title="${b.name}" aria-pressed="${armed}" aria-label="${armed ? 'Cancel' : 'Equip'} ${b.name}, ${locked ? !engine.giftsAllowed ? 'unavailable in Travel Light' : 'opens at level ' + b.unlockLevel : save.inventory[b.id] + ' available'}" ${locked || (!armed && !save.inventory[b.id]) ? 'disabled' : ''}><span>${b.symbol}</span><small>${armed ? 'Cancel' : locked ? !engine.giftsAllowed ? 'Off' : 'L' + b.unlockLevel : '×' + save.inventory[b.id]}</small></button>`;
-  }).join('');
+  const gift = giftReadout(save.inventory, save.unlocked, engine.giftsAllowed, engine.armedBooster?.id);
+  document.querySelector('#gift-count')!.textContent = gift.text;
+  const giftButton = document.querySelector<HTMLButtonElement>('#bag-button')!;
+  giftButton.setAttribute('aria-label', gift.label);
+  giftButton.setAttribute('aria-pressed', String(gift.equipped));
+  giftButton.classList.toggle('equipped', gift.equipped);
   mechanicStatus.innerHTML = chips.join('');
   mechanicStatus.classList.toggle('hidden', chips.length === 0);
 }
 function updateMuteButton(): void {
-  muteButton.textContent = save.muted ? '♪̸' : '♫';
+  muteButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M12 5v14M18 5v14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M3 9h6M9 15h6M15 8h6" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></svg>';
   muteButton.setAttribute('aria-label', 'Music and sound settings');
   music.sync();
   syncEffects();
@@ -1022,9 +1065,11 @@ function showBag(returnTo: () => void): void {
   }).join('');
   const wild = playing && (save.failures[scene.getLevelIndex()] || 0) >= 2 && !engine!.wildUsed
     ? `<article class="booster-card wild-card"><span class="booster-symbol">✦</span><div class="booster-description"><strong>Bramble's wild shot</strong><p>One free chosen-color shot on this retry. It does not use a regular bubble.</p></div><div class="booster-actions"><button id="use-wild">Use</button></div></article>` : '';
+  const cancel = playing && (engine?.armedBooster || engine?.wildColor) ? '<button id="bag-cancel" class="secondary-button">Put away this special shot</button>' : '';
   overlay.className = 'overlay sheet-overlay';
-  overlay.innerHTML = `<section class="sheet gifts-sheet" role="dialog" aria-label="Gifts"><div class="sheet-top"><span class="eyebrow">A LITTLE HELP, WITH LOVE</span><button class="sheet-close" id="bag-close" aria-label="Close gifts">×</button></div><h2>Bramble’s Very Serious Emporium</h2><p class="sheet-lead">Everything is free. Our accountant is a bee.</p><div class="sheet-scroll">${engine && !engine.giftsAllowed ? '<p class="pause-saved">Travel Light leaves gifts packed away. Pause and choose Continue as normal to use them on this board without earning a medal.</p>' : ''}${save.convertedHearts ? `<p class="pause-saved">Your ${save.convertedHearts} Honey Hearts became ${Math.ceil(save.convertedHearts / 3)} Rainbow Pops. Your old gifts are still here.</p>` : ''}<div class="emporium-proprietor"><img src="${BASE}bramble.svg" alt="Bramble, proprietor"><p>“Welcome. Please browse irresponsibly.”<small>Returns accepted in the form of imaginary hugs.</small></p></div>${cards}${wild}<h3>A little change of scenery</h3><p class="rule-footnote">Permanent garden colors, earned by clearing meadows. Pick any you have unlocked; change your mind any time.</p>${styleChoices(save)}<div class="refill-card"><strong>There’s always a little more</strong><p>Refill every unlocked gift to at least three. Come back any time.</p><button id="refill-gifts" class="secondary-button">Refill my gifts · free</button></div><p class="rule-footnote">First clears give one of each unlocked gift. Each gift uses a regular shot and is spent only when fired. Cancel before firing to keep it.</p></div></section>`;
+  overlay.innerHTML = `<section class="sheet gifts-sheet" role="dialog" aria-label="Gifts"><div class="sheet-top"><span class="eyebrow">A LITTLE HELP, WITH LOVE</span><button class="sheet-close" id="bag-close" aria-label="Close gifts">×</button></div><h2>Bramble’s Very Serious Emporium</h2><p class="sheet-lead">Everything is free. Our accountant is a bee.</p><div class="sheet-scroll">${engine && !engine.giftsAllowed ? '<p class="pause-saved">Travel Light leaves gifts packed away. Pause and choose Continue as normal to use them on this board without earning a medal.</p>' : ''}${save.convertedHearts ? `<p class="pause-saved">Your ${save.convertedHearts} Honey Hearts became ${Math.ceil(save.convertedHearts / 3)} Rainbow Pops. Your old gifts are still here.</p>` : ''}<div class="emporium-proprietor"><img src="${BASE}bramble.svg" alt="Bramble, proprietor"><p>“Welcome. Please browse irresponsibly.”<small>Returns accepted in the form of imaginary hugs.</small></p></div>${cancel}${cards}${wild}<h3>A little change of scenery</h3><p class="rule-footnote">Permanent garden colors, earned by clearing meadows. Pick any you have unlocked; change your mind any time.</p>${styleChoices(save)}<div class="refill-card"><strong>There’s always a little more</strong><p>Refill every unlocked gift to at least three. Come back any time.</p><button id="refill-gifts" class="secondary-button">Refill my gifts · free</button></div><p class="rule-footnote">First clears give one of each unlocked gift. Each gift uses a regular shot and is spent only when fired. Cancel before firing to keep it.</p></div></section>`;
   overlay.querySelector<HTMLButtonElement>('#bag-close')!.addEventListener('click', () => { save.convertedHearts = 0; storeSave(save); returnTo(); });
+  overlay.querySelector('#bag-cancel')?.addEventListener('click', () => { scene.cancelSpecial(); backToLevel(); });
   bindGardenStyles(() => showBag(returnTo));
   overlay.querySelector<HTMLButtonElement>('#refill-gifts')!.addEventListener('click', () => { refillGifts(save); storeSave(save); if (engine) updateHud(scene); showBag(returnTo); notice('A few little gifts, just for you.'); });
   overlay.querySelectorAll<HTMLButtonElement>('[data-use]').forEach((button) => button.addEventListener('click', () => {
@@ -1244,7 +1289,6 @@ function showResult(won: boolean, index: number, stars: number, firstClear = fal
 
 document.querySelector<HTMLButtonElement>('#home-button')!.addEventListener('click', showPause);
 document.querySelector<HTMLButtonElement>('#swap-button')!.addEventListener('click', () => scene.swap());
-document.querySelector<HTMLButtonElement>('#rules-button')!.addEventListener('click', () => showRules(backToLevel));
 document.querySelector<HTMLButtonElement>('#bag-button')!.addEventListener('click', () => showBag(backToLevel));
 document.querySelector<HTMLButtonElement>('#inspect-done')!.addEventListener('click', () => scene.setInspectMode(false));
 mechanicStatus.addEventListener('click', (event) => {
@@ -1281,12 +1325,5 @@ document.querySelector<HTMLButtonElement>('#help-button')!.addEventListener('cli
   showContextHint();
 });
 muteButton.addEventListener('click', () => { if (!scene.deferUntilReady(() => showAudio(backToLevel))) showAudio(backToLevel); });
-document.querySelector('#quick-boosters')!.addEventListener('click', (event) => {
-  const id = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-quick]')?.dataset.quick as BoosterId | undefined;
-  if (!id || scene.isBusy() || !overlay.classList.contains('hidden')) return;
-  if (scene.engine?.armedBooster?.id === id) scene.cancelSpecial();
-  else if (id === 'rainbow' && scene.engine?.rulesVersion === 1) showColorPicker('rainbow', backToLevel);
-  else scene.armBooster(id);
-});
 updateMuteButton();
 showHome();

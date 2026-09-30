@@ -576,3 +576,75 @@ button:disabled { cursor: default; }
 .challenge-emblem { font-size: 62px; color: #b18743; line-height: 1.2; }
 .home-panel .adventure-link { font-size: 12px; padding: 9px; margin-top: 9px; }
 .adventures-sheet .sheet-lead { margin-bottom: 8px; }
+
+/* Field-and-dock polish. The canvas grid and shot origin are unchanged. */
+#game-shell { container-type: inline-size; }
+body { background: radial-gradient(ellipse at 50% 35%, #3c6854, #102b27 80%); }
+#app { padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+#game-shell {
+  max-width: 100%; max-height: 100%;
+  width: min(100%, 460px, calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 390 / 844));
+  border-radius: 14px;
+}
+#hud .hud-top { position: absolute; top: 1.8%; left: 4%; right: 4%; margin: 0; grid-template-columns: 44px 1fr 44px; gap: 7px; }
+#hud .icon-button {
+  width: 44px; height: 44px; border: 1px solid #fbf3d5c9; border-radius: 15px;
+  color: #fff5d8; background: linear-gradient(#386a53, #285342);
+  box-shadow: 0 3px 6px #203e342e, inset 0 1px 0 #ffffff2b;
+}
+#hud .icon-button svg { width: 24px; height: 24px; vertical-align: middle; }
+#hud .level-label { text-shadow: none; color: #274c3a; }
+#hud .level-label small { font-size: max(9px, 2.4cqw); letter-spacing: 1.8px; color: #5b745d; }
+#hud .level-label strong { font: bold max(14px, 4.3cqw)/1.15 Georgia, serif; margin-top: 4px; }
+#hud .hud-stats { position: absolute; top: 9.3%; left: 15%; right: 15%; margin: 0; gap: 8px; }
+#hud .stat { flex: 1; min-width: 0; padding: 6px 8px; gap: 7px; border-radius: 14px; background: #fff9e7f2; border: 1px solid #fffdf1; box-shadow: 0 4px 9px #33533a13; }
+#hud .stat strong { font-size: max(16px, 4.5cqw); font-variant-numeric: tabular-nums; color: #315340; }
+#hud .stat small { font-size: max(9px, 2.3cqw); color: #6a7b60; margin-top: 3px; white-space: nowrap; }
+#hud .stat-icon { flex: 0 0 28px; display: grid; place-items: center; height: 31px; }
+#hud .stat-icon svg { width: 27px; height: 27px; }
+#hive-target { background: #f0d899; border-radius: 11px; }
+#star-target { top: 15.5%; color: #57714f; font-size: max(10px, 2.6cqw); letter-spacing: .2px; }
+#hud .mechanic-status {
+  position: absolute; top: 17.5%; left: 7%; right: 7%; width: auto; max-width: none; margin: 0;
+  flex-wrap: nowrap; justify-content: center; gap: 3px; overflow-x: auto; scrollbar-width: none;
+}
+#hud .mechanic-status::-webkit-scrollbar { display: none; }
+#hud .mechanic-chip { flex: 0 0 auto; min-height: 23px; padding: 3px 6px; border-color: #bccbac; background: #edf1dce8; color: #61724f; font-size: max(9px, 2.4cqw); }
+#hud .mechanic-chip.armed { border-color: #c38c62; background: #f7e2ba; color: #835d3d; }
+#hud .game-bottom { bottom: 2.1%; left: 7%; right: 7%; gap: 7px; }
+#hud #coach-line {
+  max-width: 100%; min-height: 26px; margin: 0; padding: 0 2px; display: flex; align-items: center; justify-content: center;
+  border-radius: 0; background: none; color: #637558; font-size: max(10px, 2.6cqw); font-weight: 700; line-height: 1.3; text-align: center; letter-spacing: 0;
+}
+#hud .game-actions { display: grid; grid-template-columns: 1fr 1.22fr 1fr; width: 100%; gap: 7px; }
+.dock-button {
+  min-width: 0; min-height: 44px; padding: 5px 6px; border: 1px solid #b6c4a6; border-radius: 14px;
+  color: #46634b; background: linear-gradient(#f4f4df, #e6ebd3); box-shadow: 0 2px 0 #bdc9aa;
+  font-size: max(11px, 3cqw); font-weight: 900; display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.dock-button > span { font-size: 17px; font-weight: 400; color: #819365; }
+.dock-button:active { transform: translateY(2px); box-shadow: none; }
+.gifts-button { border-color: #d7bd86; background: linear-gradient(#fff0c8, #f3dfad); color: #86613d; }
+.gifts-button > span { color: #bb8b50; }
+#gift-count { min-width: 20px; padding: 3px 4px; border-radius: 8px; background: #fff9e3; color: #9c7545; font-size: 10px; }
+.gifts-button.equipped { border-color: #6a8d64; background: #dfeacb; color: #43684c; }
+.gifts-button.equipped #gift-count { color: #43684c; font-size: 9px; }
+#bloom-shot { left: 7%; top: 81.5%; width: 22%; min-height: 47px; border: 1px solid #d8b6c3; border-radius: 15px; box-shadow: 0 2px 0 #d2c1b2; gap: 0; flex-direction: column; }
+#bloom-shot span { font-size: 23px; line-height: 1; }
+#bloom-shot strong { font-size: max(9px, 2.3cqw); }
+#bloom-shot.ready { box-shadow: 0 2px 0 #baa5aa, 0 0 0 2px #f5e7cd; }
+.toast { bottom: 24%; background: #2c5547f5; }
+.inspect-bar { bottom: 11%; }
+@media (hover: hover) { .dock-button:hover { filter: brightness(1.04); } }
+@media (max-width: 430px) { #game-shell { border-radius: 0; } }
+
+@container (max-width: 330px) {
+  #hud .stat { padding: 4px 6px; gap: 5px; }
+  #hud .stat-icon { flex-basis: 24px; height: 28px; }
+  #hud .stat-icon svg { width: 23px; height: 23px; }
+  #hud .stat strong { font-size: 14px; }
+  #hud .stat small { font-size: 8px; margin-top: 2px; }
+  #hud .game-bottom { gap: 4px; }
+  #hud #coach-line { font-size: 9.5px; min-height: 22px; line-height: 1.15; }
+  #hud .level-label strong { font-size: 13px; }
+}
