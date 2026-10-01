@@ -31,8 +31,8 @@ button:disabled { cursor: default; }
 #game-shell {
   position: relative;
   flex: none;
-  width: min(100vw, 460px, calc(100dvh * 390 / 844));
-  aspect-ratio: 390 / 844;
+  width: min(100vw, 460px, calc(100dvh * 390 / 892));
+  aspect-ratio: 390 / 892;
   overflow: hidden;
   isolation: isolate;
   background: #b9ddc2;
@@ -583,7 +583,7 @@ body { background: radial-gradient(ellipse at 50% 35%, #3c6854, #102b27 80%); }
 #app { padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 #game-shell {
   max-width: 100%; max-height: 100%;
-  width: min(100%, 460px, calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 390 / 844));
+  width: min(100%, 460px, calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 390 / 892));
   border-radius: 14px;
 }
 #hud .hud-top { position: absolute; top: 1.8%; left: 4%; right: 4%; margin: 0; grid-template-columns: 44px 1fr 44px; gap: 7px; }
@@ -653,3 +653,20 @@ body { background: radial-gradient(ellipse at 50% 35%, #3c6854, #102b27 80%); }
 #bloom-shot { left: 7%; width: max(16%, 44px); min-height: 44px; top: 79.15%; border-radius: 12px; padding: 3px 2px; }
 #bloom-shot span { font-size: 20px; }
 #bloom-shot strong { font-size: max(8px, 2.2cqw); line-height: 1.15; }
+
+/* The fuller companion gets breathing room without moving any board or shot coordinate. */
+#hud .hud-top { top: 3.9cqw; }
+#hud .hud-stats { top: 20.13cqw; }
+#star-target { top: 33.54cqw; }
+#hud .mechanic-status { top: 37.87cqw; }
+#bloom-shot { top: 171.3cqw; }
+#hud .mechanic-chip { min-height: 20px; padding: 2px 6px; }
+@container (max-width: 330px) {
+  #hud .hud-top { top: 1.8cqw; }
+  #hud .hud-stats { top: 19.65cqw; }
+  #hud .stat-icon { height: 24px; }
+  #hud .stat small { margin-top: 0; }
+  #star-target { top: 33.59cqw; font-size: 9px; line-height: 1.1; }
+  #hud .mechanic-status { top: 38.11cqw; }
+  #hud .mechanic-chip { min-height: 14px; padding: 1px 4px; font-size: 8px; line-height: 1.2; }
+}

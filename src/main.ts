@@ -10,7 +10,7 @@ import { consumeBooster, loadSave, recordLoss, recordWin, recordMastery, refillG
 import { restoreActiveRun, type RestoredRun, type RunAction } from './run';
 import type { ShotTrace } from './shot';
 import './style.css';
-import { brambleIdlePose, brambleMotionAllowed, brambleTossPose, brambleShoulder, bramblePawOutline, brambleSleeveOutline, brambleBodyPoint, giftReadout, nextBubblePoint } from './play-presentation';
+import { brambleIdlePose, brambleMotionAllowed, brambleTossPose, brambleShoulder, bramblePawOutline, brambleSleeveOutline, brambleBodyPoint, brambleDisplaySize, bramblePawScale, brambleGroundPoint, playHeight, giftReadout, nextBubblePoint } from './play-presentation';
 import { coaching, suggestShot } from './advice';
 import { activityLevel, activityUnlocked, bossPhases, challengeFor, type Activity } from './activities';
 import { recordActivityResult } from './activity-progress';
@@ -111,7 +111,7 @@ class PlayScene extends Phaser.Scene {
   private blink?: Phaser.GameObjects.Image;
   private brambleClock = 0;
   private brambleMotion = 0;
-  private brambleSize = { width: 92, height: 96 };
+  private brambleSize = { ...brambleDisplaySize };
   private brambleArms?: Phaser.GameObjects.Graphics;
   private brambleThrowMs?: number;
   private monty?: Phaser.GameObjects.Image;
@@ -361,9 +361,9 @@ class PlayScene extends Phaser.Scene {
     panel.lineStyle(2, 0xfff9e5, .95).strokeRoundedRect(19, 159, 352, 494, 22);
     panel.lineStyle(1, theme.line, .23).strokeRoundedRect(24, 164, 342, 484, 18);
     panel.lineStyle(1, theme.line, .17).lineBetween(42, 635, 348, 635);
-    panel.fillStyle(0x244f40, .18).fillRoundedRect(19, 668, 352, 162, 23);
-    panel.fillStyle(0xfff6df, .97).fillRoundedRect(19, 664, 352, 162, 23);
-    panel.lineStyle(1.5, 0xffffff, .8).strokeRoundedRect(19, 664, 352, 162, 23);
+    panel.fillStyle(0x244f40, .18).fillRoundedRect(19, 668, 352, 210, 23);
+    panel.fillStyle(0xfff6df, .97).fillRoundedRect(19, 664, 352, 210, 23);
+    panel.lineStyle(1.5, 0xffffff, .8).strokeRoundedRect(19, 664, 352, 210, 23);
     this.sceneryLayer.add(panel);
     this.sceneryLayer.add(this.add.text(195, 641, `${theme.symbol}  ${theme.name}  ${theme.symbol}`, {
       fontFamily: 'Trebuchet MS, sans-serif', fontSize: '9px', fontStyle: 'bold', color: theme.ink, letterSpacing: 1.8
@@ -378,9 +378,9 @@ class PlayScene extends Phaser.Scene {
     this.brambleClock = 0;
     this.brambleMotion = 0;
     this.brambleThrowMs = undefined;
-    this.brambleSize = { width: 92, height: 96 };
+    this.brambleSize = { ...brambleDisplaySize };
     const ground = this.add.graphics();
-    ground.fillStyle(0x7a6845, .11).fillEllipse(brambleBodyPoint.x, 752, 62, 7);
+    ground.fillStyle(0x7a6845, .11).fillEllipse(brambleGroundPoint.x, brambleGroundPoint.y, 88, 8);
     this.brambleArms = this.add.graphics();
     this.bramble = this.add.image(brambleBodyPoint.x, brambleBodyPoint.y, 'bramble-launcher').setDisplaySize(this.brambleSize.width, this.brambleSize.height);
     this.blink = this.add.image(brambleBodyPoint.x, brambleBodyPoint.y, 'bramble-launcher-blink').setDisplaySize(this.brambleSize.width, this.brambleSize.height).setVisible(false);
@@ -735,7 +735,7 @@ class PlayScene extends Phaser.Scene {
     arms.clear().setPosition(0, 0).setAngle(0);
     const shape = (outline: typeof bramblePawOutline | typeof brambleSleeveOutline, from: { x: number; y: number }, pawAngle: number, color: number, edge: number, lineWidth: number) => {
       const radians = pawAngle * Math.PI / 180;
-      const point = (x: number, y: number) => ({ x: from.x + x * Math.cos(radians) - y * Math.sin(radians), y: from.y + x * Math.sin(radians) + y * Math.cos(radians) });
+      const point = (x: number, y: number) => ({ x: from.x + bramblePawScale * (x * Math.cos(radians) - y * Math.sin(radians)), y: from.y + bramblePawScale * (x * Math.sin(radians) + y * Math.cos(radians)) });
       const start = point(outline.start[0], outline.start[1]);
       const path = new Phaser.Curves.Path(start.x, start.y);
       for (const curve of outline.curves) {
@@ -870,7 +870,7 @@ class PlayScene extends Phaser.Scene {
     if (this.sparkleBudget <= 0) return;
     this.sparkleBudget--;
     const bounds = shotsCount.getBoundingClientRect(); const canvas = this.game.canvas.getBoundingClientRect();
-    const target = { x: (bounds.x + bounds.width / 2 - canvas.x) * 390 / canvas.width, y: (bounds.y + bounds.height / 2 - canvas.y) * 844 / canvas.height };
+    const target = { x: (bounds.x + bounds.width / 2 - canvas.x) * 390 / canvas.width, y: (bounds.y + bounds.height / 2 - canvas.y) * playHeight / canvas.height };
     const mote = this.add.star(x, y, 5, 3, 7, 0xffd778).setStrokeStyle(1, 0xfff8d4);
     this.effectLayer.add(mote);
     this.tweens.add({ targets: mote, x: target.x, y: target.y, angle: 100, scale: .4, duration: 480, ease: 'Sine.InOut', onComplete: () => {
@@ -927,7 +927,7 @@ class PlayScene extends Phaser.Scene {
     const hive = document.querySelector('#hive-target')!.getBoundingClientRect();
     const canvas = this.game.canvas.getBoundingClientRect();
     const endX = (hive.x + hive.width / 2 - canvas.x) * 390 / canvas.width;
-    const endY = (hive.y + hive.height / 2 - canvas.y) * 844 / canvas.height;
+    const endY = (hive.y + hive.height / 2 - canvas.y) * playHeight / canvas.height;
     const curve = new Phaser.Curves.CubicBezier(new Phaser.Math.Vector2(x, y), new Phaser.Math.Vector2(x + (x < 195 ? 55 : -55), y - 45), new Phaser.Math.Vector2(endX + 65, endY + 60), new Phaser.Math.Vector2(endX, endY));
     const state = { t: 0 }; const epoch = this.epoch;
     this.tweens.add({ targets: state, t: 1, delay, duration: 850, ease: 'Sine.InOut', onUpdate: () => {
@@ -944,9 +944,9 @@ class PlayScene extends Phaser.Scene {
 
 const scene = new PlayScene();
 new Phaser.Game({
-  type: Phaser.CANVAS, parent: 'game', width: 390, height: 844, transparent: true,
+  type: Phaser.CANVAS, parent: 'game', width: 390, height: playHeight, transparent: true,
   backgroundColor: '#000000',
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 390, height: 844 },
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 390, height: playHeight },
   render: { antialias: true, pixelArt: false }, scene: [scene]
 });
 const modalAimGuard = new MutationObserver(() => { if (!overlay.classList.contains('hidden')) scene.cancelAim(); });
