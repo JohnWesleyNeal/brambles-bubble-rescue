@@ -25,6 +25,8 @@ import { WoodlandAudio } from './audio';
 import { gardenArt } from './garden';
 import { friends, friendsCards, styleChoices, gardenStyles, masteryLabels } from './friends';
 import { showSaveScreen } from './save-screen';
+import { showSettingsScreen } from './settings-screen';
+import { clearOverlayEscapeClose, setOverlayEscapeClose } from './overlay-navigation';
 import { lessonDemo, lessonFor } from './lessons';
 import { AimGesture, isAimCancelPoint, loadAimGuideMode, shortAimPoints, storeAimGuideMode, type AimGuideMode } from './aim-controls';
 
@@ -1050,7 +1052,7 @@ function updateHud(current: PlayScene): void {
 }
 function updateMuteButton(): void {
   muteButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M12 5v14M18 5v14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M3 9h6M9 15h6M15 8h6" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></svg>';
-  muteButton.setAttribute('aria-label', 'Music and sound settings');
+  muteButton.setAttribute('aria-label', 'Settings');
   music.sync();
   syncEffects();
 }
@@ -1063,8 +1065,9 @@ function showPause(): void {
   if (scene.deferUntilReady(showPause)) return;
   scene.cancelAim();
   scene.setInspectMode(false);
+  clearOverlayEscapeClose(overlay);
   overlay.className = 'overlay result-overlay';
-  overlay.innerHTML = `<div class="result-card pause-card" role="dialog" aria-label="Paused game"><span class="eyebrow">A LITTLE BREATHER</span><h2>${escapeHtml(engine.level.name)}</h2><p>${engine.freedBees} of ${engine.totalBees} bee friends home · ${engine.shots} bubbles left</p><div class="pause-saved">✦ Your board and next bubbles are saved automatically.</div><button id="pause-continue" class="primary-button">Keep playing <span>➜</span></button><button id="pause-restart" class="secondary-button">Restart this level</button><div class="result-links"><button id="pause-rules" class="text-button">Rules</button><button id="pause-bag" class="text-button">Gifts ✿</button><button id="pause-sound" class="text-button">Options</button></div>${engine.activity?.kind === 'challenge' && !engine.challengeRelaxed ? '<button id="pause-relax" class="secondary-button">Continue as normal · no medal</button>' : ''}<button id="pause-save" class="text-button">My Garden & saves</button><button id="pause-home" class="text-button">Return to the meadows</button></div>`;
+  overlay.innerHTML = `<div class="result-card pause-card" role="dialog" aria-modal="true" aria-label="Paused game"><span class="eyebrow">A LITTLE BREATHER</span><h2>${escapeHtml(engine.level.name)}</h2><p>${engine.freedBees} of ${engine.totalBees} bee friends home · ${engine.shots} bubbles left</p><div class="pause-saved">✦ Your board and next bubbles are saved automatically.</div><button id="pause-continue" class="primary-button">Keep playing <span>➜</span></button><button id="pause-restart" class="secondary-button">Restart this level</button><div class="result-links"><button id="pause-rules" class="text-button">Rules</button><button id="pause-bag" class="text-button">Gifts ✿</button><button id="pause-settings" class="text-button">Settings</button></div>${engine.activity?.kind === 'challenge' && !engine.challengeRelaxed ? '<button id="pause-relax" class="secondary-button">Continue as normal · no medal</button>' : ''}<button id="pause-home" class="text-button">Return to the meadows</button></div>`;
   overlay.querySelector<HTMLButtonElement>('#pause-continue')!.addEventListener('click', backToLevel);
   overlay.querySelector<HTMLButtonElement>('#pause-restart')!.addEventListener('click', () => {
     if (engine.turns > 0) showRestartConfirm();
@@ -1072,9 +1075,8 @@ function showPause(): void {
   });
   overlay.querySelector<HTMLButtonElement>('#pause-rules')!.addEventListener('click', () => showRules(showPause));
   overlay.querySelector<HTMLButtonElement>('#pause-bag')!.addEventListener('click', () => showBag(showPause));
-  overlay.querySelector<HTMLButtonElement>('#pause-sound')!.addEventListener('click', () => showAudio(showPause));
+  overlay.querySelector<HTMLButtonElement>('#pause-settings')!.addEventListener('click', () => showSettings(showPause));
   overlay.querySelector('#pause-relax')?.addEventListener('click', () => scene.relaxChallenge());
-  overlay.querySelector('#pause-save')!.addEventListener('click', () => showMyGarden(showPause));
   overlay.querySelector<HTMLButtonElement>('#pause-home')!.addEventListener('click', showHome);
 }
 function showRestartConfirm(): void {
@@ -1192,9 +1194,18 @@ function showTopUp(): void {
   overlay.querySelector('#topup-home')!.addEventListener('click', showHome);
 }
 
+function showSettings(returnTo: () => void): void {
+  if (scene.deferUntilReady(() => showSettings(returnTo))) return;
+  showSettingsScreen(overlay, {
+    close: returnTo,
+    sound: () => showAudio(() => showSettings(returnTo)),
+    saveProgress: () => showMyGarden(() => showSettings(returnTo))
+  });
+}
+
 function showAudio(returnTo: () => void): void {
   overlay.className = 'overlay sheet-overlay';
-  overlay.innerHTML = `<section class="sheet audio-sheet" role="dialog" aria-label="Sound and aiming options"><div class="sheet-top"><span class="eyebrow">A LITTLE CUSTOMISING</span><button id="audio-close" class="sheet-close" aria-label="Close options">×</button></div><h2>Sound & aiming</h2><p class="sheet-lead">Choose how much of the shot Bramble previews.</p><fieldset class="aim-guide-setting"><legend>Aim guide</legend><div class="aim-guide-choices"><button type="button" class="aim-guide-choice" data-aim-guide="short" aria-pressed="${aimGuideMode === 'short'}">Short aim</button><button type="button" class="aim-guide-choice" data-aim-guide="full" aria-pressed="${aimGuideMode === 'full'}">Full assist</button></div><p id="aim-guide-status" aria-live="polite">${aimGuideMode === 'short' ? 'A short direction stem, without the landing preview.' : 'Shows the full path and landing point. Cream rings clear; blue rings crack dew; rose and lilac rings reveal a bud or recolor Echo.'}</p></fieldset>${(['musicVolume', 'effectsVolume'] as const).map((key) => `<label class="volume-control">${key === 'musicVolume' ? 'Music' : 'Sound effects'} <output id="${key}-value">${Math.round(save[key] * 100)}%</output><input aria-label="${key === 'musicVolume' ? 'Music volume' : 'Sound effects volume'}" type="range" min="0" max="100" value="${Math.round(save[key] * 100)}" data-volume="${key}"></label>`).join('')}<button id="audio-mute" class="secondary-button">${save.muted ? 'Turn sound on' : 'Mute everything'}</button><p class="audio-credit">Music: <a href="https://opengameart.org/content/sunset-walk-ambient-quiet-sweet-loop" target="_blank" rel="noopener">Sunset Walk · KiluaBoy</a><br>Shared under CC0. Thank you for the lovely music.</p></section>`;
+  overlay.innerHTML = `<section class="sheet audio-sheet" role="dialog" aria-modal="true" aria-label="Sound & aiming"><div class="sheet-top"><span class="eyebrow">A LITTLE CUSTOMISING</span><button id="audio-close" class="sheet-close" aria-label="Back to Settings">×</button></div><h2>Sound & aiming</h2><p class="sheet-lead">Choose how much of the shot Bramble previews.</p><fieldset class="aim-guide-setting"><legend>Aim guide</legend><div class="aim-guide-choices"><button type="button" class="aim-guide-choice" data-aim-guide="short" aria-pressed="${aimGuideMode === 'short'}">Short aim</button><button type="button" class="aim-guide-choice" data-aim-guide="full" aria-pressed="${aimGuideMode === 'full'}">Full assist</button></div><p id="aim-guide-status" aria-live="polite">${aimGuideMode === 'short' ? 'A short direction stem, without the landing preview.' : 'Shows the full path and landing point. Cream rings clear; blue rings crack dew; rose and lilac rings reveal a bud or recolor Echo.'}</p></fieldset>${(['musicVolume', 'effectsVolume'] as const).map((key) => `<label class="volume-control">${key === 'musicVolume' ? 'Music' : 'Sound effects'} <output id="${key}-value">${Math.round(save[key] * 100)}%</output><input aria-label="${key === 'musicVolume' ? 'Music volume' : 'Sound effects volume'}" type="range" min="0" max="100" value="${Math.round(save[key] * 100)}" data-volume="${key}"></label>`).join('')}<button id="audio-mute" class="secondary-button">${save.muted ? 'Turn sound on' : 'Mute everything'}</button><p class="audio-credit">Music: <a href="https://opengameart.org/content/sunset-walk-ambient-quiet-sweet-loop" target="_blank" rel="noopener">Sunset Walk · KiluaBoy</a><br>Shared under CC0. Thank you for the lovely music.</p></section>`;
   overlay.querySelector('#audio-close')!.addEventListener('click', returnTo);
   overlay.querySelectorAll<HTMLButtonElement>('[data-aim-guide]').forEach((button) => button.addEventListener('click', () => {
     const mode = button.dataset.aimGuide as AimGuideMode;
@@ -1218,6 +1229,7 @@ function showAudio(returnTo: () => void): void {
     });
     if (input.dataset.volume === 'effectsVolume') input.addEventListener('change', () => playSound('pop'));
   });
+  setOverlayEscapeClose(overlay, returnTo);
 }
 
 function showMyGarden(returnTo: () => void): void {
@@ -1242,10 +1254,11 @@ function showGarden(returnTo: () => void): void {
   const progress = gardenProgress(save.stars);
   const friendCards = friendsCards(save.stars);
   overlay.className = 'overlay garden-overlay';
-  overlay.innerHTML = `<section class="garden-page" role="dialog" aria-label="Bee Garden"><div class="sheet-top"><span class="eyebrow">A HOME FOR LITTLE FRIENDS</span><button id="garden-close" class="sheet-close" aria-label="Close garden">×</button></div><h2>Your bee garden</h2><p>${progress.flowers ? 'Look what your kindness has grown.' : 'Every rescue begins with a little kindness.'}</p>${gardenArt(save.stars, save.gardenStyle)}<div class="garden-progress"><strong>${progress.flowers} / ${levels.length} meadows blooming</strong><span>${progress.decorations} decorations · ${progress.hive} hive improvements</span></div><p class="garden-note">${progress.flowers === levels.length ? 'All home together. A whole garden full of love.' : `A flower for each meadow. Your next decoration arrives at ${Math.min(levels.length, (progress.decorations + 1) * 5)} clears.`}</p><h3>Make yourself at home</h3>${styleChoices(save)}${friendCards ? `<h3>Your little friends</h3>${friendCards}` : ''}<h3>Side adventure keepsakes</h3><p>${save.medals.length}/6 challenge medals${save.bossCleared ? ' · Picnic recovered ✦' : ''}${save.rematchCleared ? ' · Monty’s rematch ✦' : ''}</p><h3>Little keepsakes</h3><p>Garden craft: ${save.records.filter(r => r?.unaided).length} · Lovely cascade: ${save.records.filter(r => r?.cascade).length} · Around the bend: ${save.records.filter(r => r?.bank).length}</p><p class="garden-note">Optional memories of clever shots. See Rules for how to earn them. Your flowers and stars are always yours.</p><button id="garden-back" class="primary-button">${scene.engine?.won ? 'Back to celebration' : 'Back to the meadows'} <span>➜</span></button></section>`;
+  overlay.innerHTML = `<section class="garden-page" role="dialog" aria-modal="true" aria-label="Bee Garden"><div class="sheet-top"><span class="eyebrow">A HOME FOR LITTLE FRIENDS</span><button id="garden-close" class="sheet-close" aria-label="Close garden">×</button></div><h2>Your bee garden</h2><p>${progress.flowers ? 'Look what your kindness has grown.' : 'Every rescue begins with a little kindness.'}</p>${gardenArt(save.stars, save.gardenStyle)}<div class="garden-progress"><strong>${progress.flowers} / ${levels.length} meadows blooming</strong><span>${progress.decorations} decorations · ${progress.hive} hive improvements</span></div><p class="garden-note">${progress.flowers === levels.length ? 'All home together. A whole garden full of love.' : `A flower for each meadow. Your next decoration arrives at ${Math.min(levels.length, (progress.decorations + 1) * 5)} clears.`}</p><h3>Make yourself at home</h3>${styleChoices(save)}${friendCards ? `<h3>Your little friends</h3>${friendCards}` : ''}<h3>Side adventure keepsakes</h3><p>${save.medals.length}/6 challenge medals${save.bossCleared ? ' · Picnic recovered ✦' : ''}${save.rematchCleared ? ' · Monty’s rematch ✦' : ''}</p><h3>Little keepsakes</h3><p>Garden craft: ${save.records.filter(r => r?.unaided).length} · Lovely cascade: ${save.records.filter(r => r?.cascade).length} · Around the bend: ${save.records.filter(r => r?.bank).length}</p><p class="garden-note">Optional memories of clever shots. See Rules for how to earn them. Your flowers and stars are always yours.</p><button id="garden-back" class="primary-button">${scene.engine?.won ? 'Back to celebration' : 'Back to the meadows'} <span>➜</span></button></section>`;
   bindGardenStyles(() => showGarden(returnTo));
   overlay.querySelector('#garden-close')!.addEventListener('click', returnTo);
   overlay.querySelector('#garden-back')!.addEventListener('click', returnTo);
+  setOverlayEscapeClose(overlay, returnTo);
 }
 
 document.querySelector('#bloom-shot')!.addEventListener('click', () => scene.armBloom());
@@ -1311,6 +1324,7 @@ function firstUnfinished(): number {
   return found < 0 ? 0 : Math.min(found, save.unlocked - 1);
 }
 function showHome(): void {
+  clearOverlayEscapeClose(overlay);
   scene.returnHome();
   hud.classList.add('hidden');
   overlay.className = 'overlay';
@@ -1322,13 +1336,13 @@ function showHome(): void {
   const progress = Math.round(complete / levels.length * 100);
   overlay.innerHTML = `<div class="home-header"><span class="eyebrow">A LITTLE ADVENTURE FOR YOU</span><h1>Bramble’s<br><em>Bubble Rescue</em></h1><p>Pop bubbles. Free little friends. Make someone smile.</p></div>
     <img class="hero-art" src="${BASE}${brambleArt.ready}" alt="Bramble the friendly honey badger" />
-    <div class="home-panel"><div class="dedication">${escapeHtml(gameContent.opening)}</div><button id="primary-play" class="primary-button">${pausedIndex !== undefined ? `Resume · Level ${next + 1}` : complete === levels.length ? 'Play again' : `Continue · Level ${next + 1}`} <span>➜</span></button>${pausedIndex !== undefined ? '<div class="paused-note">Your in-progress meadow is right where you left it.</div>' : ''}<button id="choose-level" class="secondary-button">Choose a level</button><button id="home-adventures" class="secondary-button adventure-link">Side adventures</button><div class="home-quick-actions"><button id="home-garden">My Garden</button><button id="home-bag">Gifts</button><button id="home-audio">Options</button><button id="home-rules">Rules</button></div><div class="journey-progress">${complete} of ${levels.length} meadows complete</div><div class="progress-track" role="progressbar" aria-valuenow="${complete}" aria-valuemin="0" aria-valuemax="${levels.length}" aria-label="Meadows complete"><span style="width:${progress}%"></span></div></div>
+    <div class="home-panel"><div class="dedication">${escapeHtml(gameContent.opening)}</div><button id="primary-play" class="primary-button">${pausedIndex !== undefined ? `Resume · Level ${next + 1}` : complete === levels.length ? 'Play again' : `Continue · Level ${next + 1}`} <span>➜</span></button>${pausedIndex !== undefined ? '<div class="paused-note">Your in-progress meadow is right where you left it.</div>' : ''}<button id="choose-level" class="secondary-button">Choose a level</button><button id="home-adventures" class="secondary-button adventure-link">Side adventures</button><div class="home-quick-actions"><button id="home-garden">Bee Garden</button><button id="home-bag">Gifts</button><button id="home-settings">Settings</button><button id="home-rules">Rules</button></div><div class="journey-progress">${complete} of ${levels.length} meadows complete</div><div class="progress-track" role="progressbar" aria-valuenow="${complete}" aria-valuemin="0" aria-valuemax="${levels.length}" aria-label="Meadows complete"><span style="width:${progress}%"></span></div></div>
     <div class="home-footer">A cosy little game · No timers, just bubbles</div>`;
   overlay.querySelector<HTMLButtonElement>('#primary-play')!.addEventListener('click', () => beginLevel(next));
   overlay.querySelector<HTMLButtonElement>('#choose-level')!.addEventListener('click', () => showChapterSelect(chapterIndexForLevel(next)));
   overlay.querySelector('#home-adventures')!.addEventListener('click', showSideActivities);
-  overlay.querySelector('#home-garden')!.addEventListener('click', () => showMyGarden(showHome));
-  overlay.querySelector('#home-audio')!.addEventListener('click', () => showAudio(showHome));
+  overlay.querySelector('#home-garden')!.addEventListener('click', () => showGarden(showHome));
+  overlay.querySelector('#home-settings')!.addEventListener('click', () => showSettings(showHome));
   overlay.querySelector<HTMLButtonElement>('#home-rules')!.addEventListener('click', () => showRules(showHome));
   overlay.querySelector<HTMLButtonElement>('#home-bag')!.addEventListener('click', () => showBag(showHome));
 }
@@ -1443,6 +1457,6 @@ document.querySelector<HTMLButtonElement>('#help-button')!.addEventListener('cli
   if (scene.deferUntilReady(showContextHint)) return;
   showContextHint();
 });
-muteButton.addEventListener('click', () => { if (!scene.deferUntilReady(() => showAudio(backToLevel))) showAudio(backToLevel); });
+muteButton.addEventListener('click', () => { if (!scene.deferUntilReady(() => showSettings(backToLevel))) showSettings(backToLevel); });
 updateMuteButton();
 showHome();

@@ -226,6 +226,7 @@ button:disabled { cursor: default; }
 .home-panel .paused-note { margin: 9px 0 -5px; color: #42745f; font-size: 11px; font-weight: 800; }
 .home-quick-actions, .chapter-quick-actions { display: flex; justify-content: center; gap: 13px; margin-top: 12px; }
 .home-quick-actions button, .chapter-quick-actions button { border: 0; background: none; color: #2c7058; font-size: 12px; font-weight: 900; text-decoration: underline; }
+.home-quick-actions button { min-height: 44px; padding: 4px 7px; }
 .journey-progress { margin-top: 15px; font-size: 11px; font-weight: 800; color: #467361; }
 .progress-track { height: 9px; margin: 8px auto 0; overflow: hidden; border-radius: 8px; background: #d3e6d2; box-shadow: inset 0 1px 3px #779d8755; }
 .progress-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #d49452, #e2b65d); transition: width .3s ease; }
@@ -507,7 +508,7 @@ button:disabled { cursor: default; }
 @keyframes garden-flight { 50% { transform: translate(12px,-15px) rotate(7deg); } }
 @keyframes wing-flutter { to { transform: scaleY(.35); } }
 .home-quick-actions { gap: 3px; justify-content: space-between; }
-.home-quick-actions button { min-height: 38px; padding: 4px 7px; }
+.home-quick-actions button { min-height: 44px; padding: 4px 7px; }
 .home-panel { bottom: 5%; }
 .home-panel .secondary-button { margin-top: 12px; }
 .result-links { gap: 8px; flex-wrap: wrap; }
@@ -519,16 +520,36 @@ button:disabled { cursor: default; }
 }
 
 .save-sheet { max-height: 93%; }
+.settings-sheet .sheet-close, .save-sheet .sheet-close, .audio-sheet .sheet-close, .garden-page .sheet-close { width: 44px; height: 44px; }
+.settings-links { display: grid; gap: 12px; margin-top: 14px; }
+.settings-link {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; min-height: 68px; padding: 12px 14px;
+  border: 2px solid #d4dfc1; border-radius: 16px; background: #fffdf4;
+  color: #315c49; text-align: left;
+}
+.settings-link:focus-visible { outline: 3px solid #d89e51; outline-offset: 3px; }
+.settings-link strong { display: block; font-size: 15px; }
+.settings-link small { display: block; margin-top: 4px; color: #60755d; font-size: 11px; font-weight: 600; }
+.settings-link > span:last-child { flex: none; font-size: 25px; color: #638463; }
 .save-status { font-size: 11px; line-height: 1.5; color: #50765d; }
 .save-warning { color: #954b34; font-weight: bold; }
 #garden-name-form label { font-size: 12px; font-weight: bold; color: #497459; }
 .garden-name-row { display: flex; gap: 7px; margin-top: 7px; }
-.garden-name-row input { min-width: 0; width: 60%; border: 1px solid #9db99b; border-radius: 10px; padding: 9px; font: inherit; font-size: 16px; background: #fffdf5; color: #315c49; }
+.garden-name-row input { min-width: 0; min-height: 44px; width: 60%; border: 1px solid #9db99b; border-radius: 10px; padding: 9px; font: inherit; font-size: 16px; background: #fffdf5; color: #315c49; }
 .garden-name-row button { width: 40%; font-size: 12px; }
 .save-unlocks { padding: 7px 12px; border-radius: 14px; background: #ebf2df; }
 .save-unlocks p { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; line-height: 1.7; margin: 6px 0; }
 .save-unlocks strong { white-space: nowrap; font-size: 11px; }
 .save-buttons { display: grid; gap: 10px; margin-top: 12px; }
+.save-sheet .secondary-button { min-height: 44px; }
+.save-section { margin: 0 0 14px; padding: 0 0 14px; border-bottom: 1px solid #e7dcc0; }
+.save-section:last-child { margin-bottom: 0; border-bottom: 0; }
+.save-section > h3 { margin-top: 8px; }
+.save-fresh-section { padding: 12px; border: 1px solid #e7c7ad; border-radius: 16px; background: #fff5ec; }
+.save-fresh-section > h3 { margin-top: 0; color: #955c49; }
+.save-reset-button { border-color: #d7a18d; background: #fff0e8; color: #854b3e; }
+.journey-confirm-card button { min-height: 44px; }
 .previous-journey { border: 1px solid #d9c9a5; border-radius: 14px; padding: 12px; margin-top: 18px; font-size: 12px; line-height: 1.6; }
 
 .save-sheet h2, .previous-journey, .result-card p { overflow-wrap: anywhere; }
