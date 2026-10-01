@@ -4,24 +4,20 @@
     <linearGradient id="shirt" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#efbd62"/><stop offset=".55" stop-color="#dfa247"/><stop offset="1" stop-color="#c78c3d"/></linearGradient>
     <linearGradient id="cream" x1="0" y1="0" x2=".6" y2="1"><stop stop-color="#fff8e5"/><stop offset="1" stop-color="#e8dec3"/></linearGradient>
   </defs>
-  <!-- A whole little badger: haunches, separate legs and planted rounded feet. -->
-  <path d="M148 172q28 2 30 21-12 9-29-1" fill="url(#fur)" stroke="#263a31" stroke-width="4" stroke-linejoin="round"/>
+  <!-- A compact, centered little badger beneath the cradled bubble. -->
+  <g transform="translate(30.8 102) scale(.72 .55)">  <path d="M148 172q28 2 30 21-12 9-29-1" fill="url(#fur)" stroke="#263a31" stroke-width="4" stroke-linejoin="round"/>
   <path d="M76 164q-10 27 5 38l7 16h22l2-21 5 1 8 20h23q11-9 3-25 16-18 5-35Z" fill="url(#fur)" stroke="#263a31" stroke-width="4" stroke-linejoin="round"/>
   <path d="M90 203q-19 0-22 13-1 9 18 10l24-2q6-8-1-19m19 0q16-4 24 7 9 12-5 15h-28q-7-9 3-21" fill="#35463c" stroke="#263a31" stroke-width="4" stroke-linejoin="round"/>
   <path d="M78 218l2 4m9-4 1 4m43-4 1 4m9-4 2 3" fill="none" stroke="#d8d8bf" stroke-width="2.5" stroke-linecap="round"/>
-  <!-- Resting arm, with a soft sleeve and a little paw beside the hip. -->
-  <path d="M80 120q-20 5-22 27l-1 28q4 13 17 8 7-4 9-16l9-27Z" fill="url(#fur)" stroke="#263a31" stroke-width="4"/>
-  <path d="M79 117q-15 2-18 20l18 11 16-18Z" fill="url(#shirt)" stroke="#ad7536" stroke-width="3" stroke-linejoin="round"/>
-  <path d="M62 172q8-3 14 1m-10 5 1 4m6-5 1 3" fill="none" stroke="#9ba995" stroke-width="2" stroke-linecap="round"/>
-  <!-- Rounded shirt leaves the lower body and both feet clearly visible. -->
-  <path d="M92 110q-20 7-21 34l-1 27q3 23 41 24 40 0 44-22l-1-39q-4-20-26-25Z" fill="url(#shirt)" stroke="#aa7439" stroke-width="3.5" stroke-linejoin="round"/>
+</g>
+  <g transform="translate(30.8 123.2) scale(.72 .48)">  <path d="M92 110q-20 7-21 34l-1 27q3 23 41 24 40 0 44-22l-1-39q-4-20-26-25Z" fill="url(#shirt)" stroke="#aa7439" stroke-width="3.5" stroke-linejoin="round"/>
   <path d="M83 154q-3 20 7 28m56-25q2 14-6 23" fill="none" stroke="#f8d58d" stroke-width="4" stroke-linecap="round" opacity=".65"/>
   <path d="M94 117q14 14 31 1" fill="none" stroke="#995f2e" stroke-width="3.5" stroke-linecap="round"/>
   <path d="M101 149q11 7 23 0l-2 22q-10 7-20 0Z" fill="#fff0bd" opacity=".85"/>
   <path d="M111 151v18" fill="none" stroke="#edc778" stroke-width="2"/>
-  <path d="M142 121q11-4 21 11l-8 18-18-9Z" fill="url(#shirt)" stroke="#ad7536" stroke-width="3" stroke-linejoin="round"/>
-  <!-- Familiar cream stripe, round ears, shy smile and rosy cheeks. -->
-  <path d="M58 50q-18-8-13-26 3-14 19-11 13 3 16 18m57 1q7-18 21-17 16 0 16 17-1 14-13 20" fill="url(#fur)" stroke="#263a31" stroke-width="4.5"/>
+</g>
+  <!-- Keep the familiar face, cream stripe and rosy ears. -->
+  <g transform="translate(41.8 95.4) scale(.62)">  <path d="M58 50q-18-8-13-26 3-14 19-11 13 3 16 18m57 1q7-18 21-17 16 0 16 17-1 14-13 20" fill="url(#fur)" stroke="#263a31" stroke-width="4.5"/>
   <path d="M57 38q-10-3-7-13 8-6 16 3m80 1q8-9 16-3 6 10-5 15" fill="#dba393"/>
   <path d="M46 69q-1-39 55-45 57-6 68 31 9 24-7 44l-11 12q-18 18-46 17-27 0-45-17l-10-5 2-6-7-8 5-2q-7-9-4-21Z" fill="url(#fur)" stroke="#263a31" stroke-width="4.5" stroke-linejoin="round"/>
   <path d="M91 28q-19 17-18 43 0 22 15 37 11 15 25 16 19-3 27-18 13-19 10-40-3-26-23-40-15-3-36 2Z" fill="url(#cream)"/>
@@ -33,4 +29,5 @@
   <path d="M105 96q6-2 10-1" fill="none" stroke="#69776a" stroke-width="2" stroke-linecap="round"/>
   <path d="M113 104v5m0 0q-5 7-12 3m12-3q5 5 11 0" fill="none" stroke="#495341" stroke-width="2.5" stroke-linecap="round"/>
   <path d="M102 37q10-3 20-1" fill="none" stroke="#fffdf0" stroke-width="4" stroke-linecap="round" opacity=".7"/>
+</g>
 </svg>

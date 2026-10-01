@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brambleIdlePose, brambleMotionAllowed, brambleTossPose, brambleArmJoint, brambleBodyPoint, giftReadout, nextBubblePoint } from './play-presentation';
+import { brambleIdlePose, brambleMotionAllowed, brambleTossPose, brambleShoulder, brambleShoulderPoints, bramblePawLength, bramblePawOutline, brambleBodyPoint, giftReadout, nextBubblePoint } from './play-presentation';
 import { launcherPoint, aimCancelRadius } from './aim-controls';
 import { GameEngine } from './engine';
 import { levels } from './levels';
@@ -51,58 +51,81 @@ describe('Bramble’s quiet company', () => {
   });
 });
 
-describe('Bramble at the launcher', () => {
-  it('cups the loaded bubble and follows the aim without moving its origin', () => {
-    expect(brambleTossPose(0)).toEqual({ handX: 195, handY: 711, lean: 0, lift: 0 });
-    expect(brambleTossPose(1).handX).toBeLessThan(195);
-    expect(brambleTossPose(-1).handX).toBeGreaterThan(195);
+describe('Bramble’s two-paw cradle', () => {
+  const ready = { pawAngle: -78, lean: 0, lift: 0, shiftX: 0, scaleY: 1 };
+  const geometry = (aim: number, time?: number, side: 0 | 1 = 0, idleTime?: number, bubbleLoaded = true) => {
+    const pose = brambleTossPose(aim, time, false, bubbleLoaded);
+    const idle = brambleIdlePose(idleTime ?? 0, idleTime === undefined ? 0 : 1);
+    const center = { x: brambleBodyPoint.x + pose.shiftX, y: brambleBodyPoint.y - pose.lift - idle.rise };
+    const width = 92 * idle.scaleX * (1 + (1 - pose.scaleY) * .5), height = 96 * idle.scaleY * pose.scaleY;
+    const angle = idle.angle + pose.lean;
+    const shoulder = brambleShoulder(center, width, height, angle, side);
+    const radians = (angle + (side === 0 ? -180 - pose.pawAngle : pose.pawAngle)) * Math.PI / 180;
+    return { pose, shoulder, paw: { x: shoulder.x + bramblePawLength * Math.cos(radians), y: shoulder.y + bramblePawLength * Math.sin(radians) } };
+  };
+  it('stands centered beneath the unchanged bubble and cups it with matching paws', () => {
+    expect(brambleBodyPoint).toEqual({ x: 195, y: 704 });
+    expect(brambleTossPose(0)).toEqual(ready);
+    const left = geometry(0, undefined, 0), right = geometry(0, undefined, 1);
+    expect(left.paw.x + right.paw.x).toBeCloseTo(launcherPoint.x * 2);
+    expect(left.paw.y).toBeCloseTo(right.paw.y);
+    expect(left.paw.x).toBeGreaterThan(175);
+    expect(left.paw.x).toBeLessThan(181);
+    expect(left.paw.y).toBeGreaterThan(712);
+    expect(left.paw.y).toBeLessThan(716);
+    expect(brambleTossPose(1).pawAngle).toBe(ready.pawAngle);
+    expect(brambleTossPose(-1).pawAngle).toBe(ready.pawAngle);
     expect(launcherPoint).toEqual({ x: 195, y: 690 });
   });
-  it('lifts through release and recovers to the ready pose', () => {
-    expect(brambleTossPose(0, 0)).toEqual(brambleTossPose(0));
-    expect(brambleTossPose(0, 180).handY).toBe(685);
-    expect(brambleTossPose(0, 180).lift).toBe(2.5);
-    expect(brambleTossPose(0, 360).handY).toBeCloseTo(711);
+  it('uses a gentle body crouch, upward toss and settled recovery', () => {
+    expect(brambleTossPose(0, 0)).toEqual(ready);
+    expect(brambleTossPose(0, 35).scaleY).toBe(.96);
+    expect(brambleTossPose(0, 35).lift).toBe(-1.6);
+    expect(brambleTossPose(0, 180)).toEqual({ pawAngle: -83, lean: 0, lift: 3, shiftX: 0, scaleY: 1 });
+    expect(brambleTossPose(0, 300).pawAngle).toBeGreaterThan(-83);
+    expect(brambleTossPose(0, 360, false, false)).toEqual({ ...ready, pawAngle: 65 });
+    expect(brambleTossPose(0, 440, false, true).pawAngle).toBeCloseTo(-6.5);
+    expect(brambleTossPose(0, 520)).toEqual(ready);
+    expect(brambleTossPose(0, undefined, false, false).pawAngle).toBe(65);
   });
-  it('keeps all paw poses clear of the board and Next bubble', () => {
-    for (const angle of [-2, -1.25, 0, 1.25, 2]) for (let time = 0; time <= 360; time += 20) {
-      const pose = brambleTossPose(angle, time);
-      expect(pose.handX).toBeGreaterThanOrEqual(185);
-      expect(pose.handX).toBeLessThanOrEqual(205);
-      expect(pose.handY).toBeGreaterThan(680);
-      expect(pose.handY).toBeLessThanOrEqual(711);
-      expect(pose.handX + 10).toBeLessThan(nextBubblePoint.x - 24);
+  it('keeps matched fixed shoulders and constant short reach throughout every pose', () => {
+    expect(brambleShoulderPoints).toEqual([{ x: 78, y: 178 }, { x: 142, y: 178 }]);
+    expect(bramblePawLength).toBe(16);
+    for (const aim of [-1.25, 0, 1.25]) for (let time = 0; time <= 520; time += 5) for (const side of [0, 1] as const) {
+      const { pose, paw, shoulder } = geometry(aim, time, side, time * 27);
+      expect(Math.hypot(paw.x - shoulder.x, paw.y - shoulder.y)).toBeCloseTo(bramblePawLength, 8);
+      expect(paw.y - 10).toBeGreaterThan(653);
+      expect(paw.x + 10).toBeLessThan(nextBubblePoint.x - 24);
+      expect(paw.x - 10).toBeGreaterThan(150);
+      expect(Math.abs(pose.lean)).toBeLessThanOrEqual(.5);
+    }
+    // Both sides use this one continuous broad outline, with no separate finger or wrist shapes.
+    expect(bramblePawOutline.curves).toHaveLength(5);
+    for (const curve of bramblePawOutline.curves) for (let i = 0; i < curve.length; i += 2) {
+      expect(curve[i]).toBeLessThanOrEqual(23);
+      expect(Math.abs(curve[i + 1])).toBeLessThanOrEqual(6);
     }
   });
-  it('keeps the whole launch gesture still with reduced motion', () => {
-    for (const angle of [-1, 0, 1]) for (const time of [0, 90, 180, 360]) expect(brambleTossPose(angle, time, true)).toEqual({ handX: 195, handY: 711, lean: 0, lift: 0 });
-  });
-});
-
-
-describe('Bramble’s full-body stance', () => {
-  it('stands closer to the bubble, leaving the unchanged launch and Next spaces open', () => {
-    expect(brambleBodyPoint).toEqual({ x: 143, y: 694 });
-    expect(launcherPoint).toEqual({ x: 195, y: 690 });
-    expect(brambleBodyPoint.x + 46).toBeLessThan(nextBubblePoint.x - 24);
-  });
-  it('keeps a bent elbow instead of a straight horizontal lever', () => {
-    const shoulder = { x: 163, y: 704 };
-    const elbow = brambleArmJoint(shoulder, { x: 195, y: 711 });
-    expect(elbow.x).toBeCloseTo(173.24);
-    expect(elbow.y).toBe(722);
-    expect(elbow.y).toBeGreaterThan(shoulder.y);
-    expect(elbow.y).toBeGreaterThan(711);
-  });
-  it('keeps both limb segments short through aim, release and recovery', () => {
-    for (const aim of [-1.25, 0, 1.25]) for (let time = 0; time <= 360; time += 20) {
-      const paw = brambleTossPose(aim, time);
-      const shoulder = { x: 163, y: 704 - paw.lift };
-      const elbow = brambleArmJoint(shoulder, { x: paw.handX, y: paw.handY });
-      expect(Math.hypot(elbow.x - shoulder.x, elbow.y - shoulder.y)).toBeLessThan(27);
-      expect(Math.hypot(paw.handX - elbow.x, paw.handY - elbow.y)).toBeLessThan(36);
-      expect(elbow.y).toBeGreaterThan(700);
-      expect(elbow.y).toBeLessThanOrEqual(724);
+  it('keeps both arms symmetric through anticipation, release and recovery', () => {
+    for (let time = 0; time <= 520; time += 5) {
+      const left = geometry(0, time, 0), right = geometry(0, time, 1);
+      expect(left.shoulder.x + right.shoulder.x).toBeCloseTo(launcherPoint.x * 2);
+      expect(left.shoulder.y).toBeCloseTo(right.shoulder.y);
+      expect(left.paw.x + right.paw.x).toBeCloseTo(launcherPoint.x * 2);
+      expect(left.paw.y).toBeCloseTo(right.paw.y);
     }
+  });
+  it('keeps the relaxed paws above the instructions and outside the Bloom nook', () => {
+    for (let idleTime = 0; idleTime < 20000; idleTime += 50) for (const side of [0, 1] as const) {
+      const { paw } = geometry(0, 360, side, idleTime, false);
+      expect(paw.y + 9).toBeLessThan(758);
+      expect(paw.x - 9).toBeGreaterThan(100);
+    }
+  });
+  it('holds both paws down until the next bubble is loaded', () => {
+    for (const time of [360, 440, 520, 1000]) expect(brambleTossPose(0, time, false, false)).toEqual({ ...ready, pawAngle: 65 });
+  });
+  it('keeps the whole gesture still with reduced motion', () => {
+    for (const angle of [-1, 0, 1]) for (const time of [0, 35, 90, 180, 360]) expect(brambleTossPose(angle, time, true)).toEqual(ready);
   });
 });
