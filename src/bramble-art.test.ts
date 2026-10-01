@@ -3,9 +3,9 @@ import { brambleArt, brambleArtCup, brambleArtSource, brambleArtSize, brambleArt
 import { launcherPoint } from './aim-controls';
 
 describe('painted Bramble presentation', () => {
-  it('loads three full-body painted poses as small cacheable assets', () => {
-    expect(Object.keys(brambleArt)).toEqual(['ready', 'toss', 'recover']);
-    for (const path of Object.values(brambleArt)) expect(path).toMatch(/^characters\/bramble-(ready|toss|recover)\.webp$/);
+  it('loads the accepted poses and a matching palm-opening in-between as small cacheable assets', () => {
+    expect(Object.keys(brambleArt)).toEqual(['ready', 'lift', 'toss', 'recover']);
+    for (const path of Object.values(brambleArt)) expect(path).toMatch(/^characters\/bramble-(ready|lift|toss|recover)\.webp$/);
   });
   it('anchors the empty painted cup to the unchanged real launch point', () => {
     expect(launcherPoint).toEqual({ x: 195, y: 690 });
@@ -35,13 +35,13 @@ describe('painted Bramble presentation', () => {
     expect(feet.y).toBeLessThan(752);
   });
   it('starts ready, lifts in a cohesive toss, settles, then receives the next bubble', () => {
-    expect(brambleArtPose().weights).toEqual({ ready: 1, toss: 0, recover: 0 });
-    expect(brambleArtPose(110, false, false).weights.toss).toBe(1);
-    expect(brambleArtPose(320, false, false).weights.recover).toBe(1);
+    expect(brambleArtPose().weights).toEqual({ ready: 1, lift: 0, toss: 0, recover: 0 });
+    expect(brambleArtPose(110, false, false).weights.lift).toBe(1);
+    expect(brambleArtPose(360, false, false).weights.lift).toBeCloseTo(.18);
     expect(brambleArtPose(520, false, true).weights.ready).toBe(1);
   });
-  it('waits in the relaxed pose when the bubble is still away', () => {
-    for (const time of [360, 440, 520, 2000]) expect(brambleArtPose(time, false, false).weights).toEqual({ ready: 0, toss: 0, recover: 1 });
+  it('waits with gently open paws when the bubble is still away', () => {
+    for (const time of [360, 440, 520, 2000]) { const weights = brambleArtPose(time, false, false).weights; expect(weights.ready).toBeCloseTo(.82); expect(weights.lift).toBeCloseTo(.18); expect(weights.toss + weights.recover).toBe(0); }
   });
   it('keeps every crossfade bounded, normalized and quiet', () => {
     for (const loaded of [false, true]) for (let time = 0; time <= 900; time += 5) {
@@ -53,8 +53,23 @@ describe('painted Bramble presentation', () => {
   });
   it('anticipates while aiming without moving the actual bubble', () => {
     const pose = brambleArtPose(undefined, false, true, true);
-    expect(pose.weights.ready).toBe(1); expect(pose.rise).toBe(-1.2); expect(pose.scaleY).toBe(.975);
+    expect(pose.weights.ready).toBe(1); expect(pose.rise).toBe(-.8); expect(pose.scaleY).toBe(.988);
     expect(launcherPoint).toEqual({ x: 195, y: 690 });
+  });
+  it('preserves the exact aimed anticipation at release and receives before input unlock', () => {
+    for (const strength of [0, .2, .7, 1]) {
+      const aimed = brambleArtPose(undefined, false, true, strength);
+      const released = brambleArtPose(0, false, false, false, strength);
+      for (const key of ['rise', 'lean', 'scaleX', 'scaleY'] as const) expect(released[key]).toBeCloseTo(aimed[key]);
+    }
+    expect(brambleArtPose(360, false, true).bubbleAlpha).toBe(0);
+    expect(brambleArtPose(440, false, true).bubbleAlpha).toBe(.5);
+    expect(brambleArtPose(520, false, true).bubbleAlpha).toBe(1);
+    for (let time = 0; time <= 800; time += 5) {
+      const pose = brambleArtPose(time, false, false);
+      expect(pose.weights.toss).toBe(0); expect(pose.weights.recover).toBe(0);
+      expect(pose.bubbleAlpha).toBe(0);
+    }
   });
   it('suppresses pose changes and decoration with reduced motion', () => {
     const steady = brambleArtPose(undefined, true);

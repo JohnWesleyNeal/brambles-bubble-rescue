@@ -103,3 +103,11 @@ The seven new chapters contain 70 separately authored occupied silhouettes, with
 Echo resolution finishes its bounded matching waves before dropping unsupported bubbles, then advances wind and chameleons once. Bees, pollen, dew transitions, drops and earned Bloom are counted once. Seeded saved-run replay and hint simulation use exactly those rules.
 
 For offline route verification, run `node scripts/find-campaign-routes.mjs 31 100 24`, then `node scripts/freeze-campaign-routes.mjs` and `npm test`. The solver uses real collision traces, regular shots and free swaps; it establishes solvability, not human difficulty or enjoyment. Phone aiming, character animation, chapter pacing and sound still benefit from hands-on playtesting. See `docs/campaign-expansion.md` for mechanics and compatibility details.
+
+## Release and bubble polish
+
+Bramble's launcher gesture now uses a small painted palm-opening in-between, with his accepted face, head and feet held in place. Seventeen opaque cached blends keep the shirt solid; a gentle release and settle replace the rapid three-painting dissolve. Aiming eases into its small anticipation, and the next bubble appears during the receive phase before shooting unlocks. Reduced motion keeps the original ready pose still.
+
+Colored bubbles keep their existing symbols and special-tile markers, with richer color separation and a finer glass shell. Projectiles interpolate the exact engine trace, including bank turns, and a brief acceleration moves the bubble out of the paws without delaying emission. Gameplay resolves only when that visible projectile reaches the recorded contact.
+
+Matches now plump briefly and pinch into a burst, spreading out from contact in short beats. Echo follow-ons have restrained visual beats, and detached clusters wait for their supporting pop before falling. Rings, beads and pollen share one 48-object cap. Rescued bees and the ready bubble finish their readouts before the next input is accepted. Rules, collisions, level layouts, queues and saved journeys are unchanged.

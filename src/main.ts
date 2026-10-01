@@ -11,8 +11,12 @@ import { restoreActiveRun, type RestoredRun, type RunAction } from './run';
 import type { ShotTrace } from './shot';
 import './style.css';
 import { chapterChoices, chapterIndexForLevel, chapterTheme, isChapterEnd, inspectedBubbleDetail, previewShotOutcome, transformationFeedback, transformedTileKinds } from './campaign-presentation';
+import { paintBrambleGesture, brambleGestureFrame, BRAMBLE_GESTURE_STEPS, brambleGestureTextureSize } from './bramble-gesture-texture';
+import { paintBubbleMaterial } from './bubble-material';
+import { buildPopPresentation, popMotion } from './pop-presentation';
+import { shotPathIndex, shotPathPoint } from './shot-presentation';
 import { brambleIdlePose, brambleMotionAllowed, playHeight, giftReadout, nextBubblePoint } from './play-presentation';
-import { brambleArt, brambleArtSize, brambleArtOrigin, brambleArtGround, brambleArtPose, brambleArtPoint, bramblePawMattes, type BrambleArtFrame } from './bramble-art';
+import { brambleArt, brambleArtSize, brambleArtOrigin, brambleArtGround, brambleGesture, brambleArtPose, brambleArtPoint, bramblePawMattes } from './bramble-art';
 import { coaching, suggestShot } from './advice';
 import { activityLevel, activityUnlocked, bossPhases, challengeFor, type Activity } from './activities';
 import { recordActivityResult } from './activity-progress';
@@ -110,7 +114,8 @@ class PlayScene extends Phaser.Scene {
   private levelIndex = 0;
   displayedBees = 0;
   private bramble?: Phaser.GameObjects.Image;
-  private bramblePaint?: Record<BrambleArtFrame, Phaser.GameObjects.Image>;
+  private brambleAimStrength = 0;
+  private brambleReleaseAnticipation = 0;
   private bramblePawFront?: Phaser.GameObjects.Image;
   private bramblePawMask?: Phaser.GameObjects.Graphics;
   private brambleClock = 0;
@@ -125,7 +130,7 @@ class PlayScene extends Phaser.Scene {
   private cancelAimVisible = false;
   private resolving = false;
   private aimAngle = 0;
-  private flying?: { trace: ShotTrace; index: number; sprite: Phaser.GameObjects.Container; angle: number };
+  private flying?: { trace: ShotTrace; elapsedMs: number; index: number; sprite: Phaser.GameObjects.Container; angle: number };
   private boardLayer!: Phaser.GameObjects.Container;
   private pathBee?: Phaser.GameObjects.Container;
   private sceneryLayer!: Phaser.GameObjects.Container;
@@ -151,6 +156,7 @@ class PlayScene extends Phaser.Scene {
   }
   create(): void {
     this.makeBubbleTextures();
+    this.makeBrambleGestureTextures();
     this.sceneryLayer = this.add.container(0, 0);
     this.boardLayer = this.add.container(0, 0).setDepth(3);
     this.effectLayer = this.add.container(0, 0).setDepth(4);
@@ -378,12 +384,11 @@ class PlayScene extends Phaser.Scene {
     const ground = this.add.graphics();
     ground.fillStyle(0x7a6845, .11).fillEllipse(brambleArtGround.x, brambleArtGround.y, 72, 8);
     this.sceneryLayer.add(ground);
-    const painted = (frame: BrambleArtFrame) => this.add.image(195, 690, `bramble-painted-${frame}`)
+    const painted = () => this.add.image(195, 690, 'bramble-gesture-0')
       .setOrigin(brambleArtOrigin.x, brambleArtOrigin.y).setDisplaySize(brambleArtSize.width, brambleArtSize.height).setDepth(2);
-    this.bramblePaint = { ready: painted('ready'), toss: painted('toss').setAlpha(0), recover: painted('recover').setAlpha(0) };
-    this.bramble = this.bramblePaint.ready;
+    this.bramble = painted();
     this.bramblePawMask = this.add.graphics().setVisible(false);
-    this.bramblePawFront = painted('ready').setDepth(6).setMask(this.bramblePawMask.createGeometryMask());
+    this.bramblePawFront = painted().setDepth(6).setMask(this.bramblePawMask.createGeometryMask());
     this.animateBramble(0);
     if (this.engine?.activity?.kind === 'boss') {
       this.monty = this.add.image(73, 555, 'magpie').setDisplaySize(110, 110);
@@ -392,33 +397,25 @@ class PlayScene extends Phaser.Scene {
     }
   }
 
+  private makeBrambleGestureTextures(): void {
+    const ready = this.textures.get('bramble-painted-ready').getSourceImage() as HTMLImageElement;
+    const lift = this.textures.get('bramble-painted-lift').getSourceImage() as HTMLImageElement;
+    for (let frame = 0; frame <= BRAMBLE_GESTURE_STEPS; frame++) {
+      const key = `bramble-gesture-${frame}`;
+      if (this.textures.exists(key)) continue;
+      const texture = this.textures.createCanvas(key, brambleGestureTextureSize.width, brambleGestureTextureSize.height)!;
+      paintBrambleGesture(texture.getContext(), ready, lift, frame / BRAMBLE_GESTURE_STEPS);
+      texture.refresh();
+    }
+  }
+
   private makeBubbleTextures(): void {
-    const mix = (value: number, target: number, amount: number): string => {
-      const channel = (shift: number) => Math.round(((value >> shift) & 255) * (1 - amount) + ((target >> shift) & 255) * amount);
-      return `rgb(${channel(16)},${channel(8)},${channel(0)})`;
-    };
     for (const [color, style] of Object.entries(palette)) {
       const key = `orb-${color}`;
       if (this.textures.exists(key)) continue;
       const texture = this.textures.createCanvas(key, 128, 128)!;
       const context = texture.getContext();
-      const fill = context.createRadialGradient(44, 36, 4, 62, 62, 64);
-      fill.addColorStop(0, mix(style.fill, 0xffffff, .64));
-      fill.addColorStop(.36, mix(style.fill, 0xffffff, .20));
-      fill.addColorStop(.74, mix(style.fill, style.edge, .10));
-      fill.addColorStop(1, mix(style.fill, style.edge, .68));
-      context.fillStyle = fill;
-      context.beginPath(); context.arc(64, 64, 59, 0, Math.PI * 2); context.fill();
-      context.strokeStyle = mix(style.edge, 0xffffff, .12); context.lineWidth = 3.5; context.stroke();
-      context.beginPath(); context.arc(64, 64, 53, 0, Math.PI * 2);
-      context.strokeStyle = 'rgba(255,255,255,.40)'; context.lineWidth = 1.5; context.stroke();
-      context.beginPath(); context.arc(64, 64, 49, 3.65, 4.90);
-      context.strokeStyle = 'rgba(255,255,255,.90)'; context.lineWidth = 5; context.lineCap = 'round'; context.stroke();
-      context.beginPath(); context.ellipse(43, 37, 9, 4, -.5, 0, Math.PI * 2);
-      context.fillStyle = 'rgba(255,255,255,.65)'; context.fill();
-      context.beginPath(); context.arc(64, 64, 48, .34, 1.26);
-      context.strokeStyle = mix(style.edge, 0xffffff, .2); context.globalAlpha = .35; context.lineWidth = 4; context.stroke();
-      context.globalAlpha = 1;
+      paintBubbleMaterial(context, style);
       texture.refresh();
     }
   }
@@ -587,6 +584,7 @@ class PlayScene extends Phaser.Scene {
     this.wildLabel?.destroy();
     if (!this.engine) return;
     this.shooterBubble = this.makeShotBubble(195, 690).setDepth(5);
+    if (this.brambleThrowMs !== undefined && !reducedMotion.matches) this.shooterBubble.setAlpha(brambleArtPose(this.brambleThrowMs, false, true).bubbleAlpha);
     this.nextBubble = this.makeBubble(nextBubblePoint.x, nextBubblePoint.y, normalBubble(this.engine.nextColor), 18).setDepth(5);
     const label = this.engine.bloomArmed ? 'BLOOM SHOT' : this.engine.wildColor ? 'WILD SHOT' : this.engine.armedBooster ? boosterById[this.engine.armedBooster.id].name.toUpperCase() : '';
     if (label) {
@@ -730,8 +728,9 @@ class PlayScene extends Phaser.Scene {
     if (!this.engine || this.flying || this.resolving || this.engine.won || this.engine.lost || !overlay.classList.contains('hidden')) return;
     if (!this.engine.canFire(this.aimAngle)) { notice(this.engine.bloomArmed ? 'Aim Bloom at a colored bubble. Honeycomb blocks it.' : this.engine.armedBooster?.id === 'rainbow' ? 'Aim at a colored bubble. Honeycomb blocks Rainbow.' : 'Aim Bonk at a tile first.'); return; }
     const trace = this.engine.preview(this.aimAngle);
+    this.brambleReleaseAnticipation = this.brambleAimStrength;
     this.brambleThrowMs = 0;
-    this.flying = { trace, index: 0, angle: this.aimAngle, sprite: this.makeShotBubble(195, 690).setDepth(5) };
+    this.flying = { trace, elapsedMs: 0, index: 0, angle: this.aimAngle, sprite: this.makeShotBubble(195, 690).setDepth(5) };
     this.shooterBubble?.setVisible(false);
     this.aimGraphics.clear();
     playSound('shoot');
@@ -740,8 +739,9 @@ class PlayScene extends Phaser.Scene {
     this.animateBramble(delta);
     if (!this.flying) return;
     const shot = this.flying;
-    shot.index = Math.min(shot.trace.path.length - 1, shot.index + Math.max(900, shot.trace.path.length * 4 / .75) * Math.min(delta, 50) / 1000 / 4);
-    const point = shot.trace.path[Math.floor(shot.index)];
+    shot.elapsedMs += Math.min(delta, 50);
+    shot.index = shotPathIndex(shot.trace.path.length, shot.elapsedMs, reducedMotion.matches);
+    const point = shotPathPoint(shot.trace.path, shot.index);
     shot.sprite.setPosition(point.x, point.y);
     if (!reducedMotion.matches && (this.engine?.armedBooster || this.engine?.bloomArmed) && (this.trailClock += delta) > 40) {
       this.trailClock = 0;
@@ -752,37 +752,39 @@ class PlayScene extends Phaser.Scene {
     if (shot.index >= shot.trace.path.length - 1) this.land();
   }
   private destroyPaintedBramble(): void {
-    for (const image of Object.values(this.bramblePaint ?? {})) image.destroy();
+    this.bramble?.destroy();
     this.bramblePawFront?.destroy();
     this.bramblePawMask?.destroy();
-    this.bramblePaint = undefined;
+    this.brambleAimStrength = 0;
     this.bramblePawFront = undefined;
     this.bramblePawMask = undefined;
     this.bramble = undefined;
   }
   private animateBramble(delta: number): void {
-    if (!this.engine || !this.bramblePaint || !this.bramblePawFront?.active || !this.bramblePawMask?.active) return;
+    if (!this.engine || !this.bramble?.active || !this.bramblePawFront?.active || !this.bramblePawMask?.active) return;
     const menuOpen = !overlay.classList.contains('hidden');
     const allowed = brambleMotionAllowed({ aiming: this.aiming, menuOpen, pageHidden: document.hidden, reducedMotion: reducedMotion.matches });
     const step = Math.min(delta, 50);
-    if (allowed) this.brambleClock += step;
+    if (allowed && this.brambleThrowMs === undefined) this.brambleClock += step;
+    const aimTarget = this.aiming && !menuOpen && !reducedMotion.matches ? 1 : 0;
+    this.brambleAimStrength += (aimTarget - this.brambleAimStrength) * (1 - Math.exp(-step / 90));
     if (this.brambleThrowMs !== undefined && !menuOpen && !document.hidden) {
       this.brambleThrowMs += step;
-      if (this.brambleThrowMs >= 360 && !this.shooterBubble?.visible) this.brambleThrowMs = 360;
-      else if (this.brambleThrowMs >= 520) this.brambleThrowMs = undefined;
+      if (this.brambleThrowMs >= brambleGesture.settleMs && !this.shooterBubble?.visible) this.brambleThrowMs = brambleGesture.settleMs;
+      else if (this.brambleThrowMs >= brambleGesture.readyMs) this.brambleThrowMs = undefined;
     }
     this.brambleMotion = reducedMotion.matches ? 0 : Phaser.Math.Clamp(this.brambleMotion + (allowed ? step / 220 : -step / 140), 0, 1);
     const idle = brambleIdlePose(this.brambleClock, this.brambleMotion);
-    const pose = brambleArtPose(this.brambleThrowMs, reducedMotion.matches || menuOpen, this.shooterBubble?.visible ?? true, this.aiming);
+    const pose = brambleArtPose(this.brambleThrowMs, reducedMotion.matches || menuOpen, this.shooterBubble?.visible ?? true, this.brambleAimStrength, this.brambleReleaseAnticipation);
     const angle = idle.angle * .5 + pose.lean;
     const cup = { x: 195, y: 690 - idle.rise * .5 - pose.rise };
     const width = brambleArtSize.width * (1 + (idle.scaleX - 1) * .4) * pose.scaleX;
     const height = brambleArtSize.height * (1 + (idle.scaleY - 1) * .4) * pose.scaleY;
-    for (const [frame, image] of Object.entries(this.bramblePaint)) {
-      image.setPosition(cup.x, cup.y).setAngle(angle).setDisplaySize(width, height).setAlpha(pose.weights[frame as BrambleArtFrame]);
-    }
-    this.bramblePawFront.setPosition(cup.x, cup.y).setAngle(angle).setDisplaySize(width, height)
-      .setAlpha(this.shooterBubble?.visible ? pose.weights.ready : 0);
+    const texture = `bramble-gesture-${brambleGestureFrame(pose.weights.lift)}`;
+    this.bramble.setTexture(texture).setPosition(cup.x, cup.y).setAngle(angle).setDisplaySize(width, height);
+    if (this.shooterBubble?.visible) this.shooterBubble.setAlpha(pose.bubbleAlpha);
+    this.bramblePawFront.setTexture(texture).setPosition(cup.x, cup.y).setAngle(angle).setDisplaySize(width, height)
+      .setAlpha(this.shooterBubble?.visible ? pose.bubbleAlpha * pose.weights.ready : 0);
     this.bramblePawMask.clear().fillStyle(0xffffff);
     for (const matte of bramblePawMattes) {
       const points = matte.map(([x, y]) => brambleArtPoint({ x, y }, cup, width, height, angle));
@@ -824,12 +826,13 @@ class PlayScene extends Phaser.Scene {
     this.drawShooter();
     this.drawAim();
     updateHud(this);
-    if (result.settled?.popped.length) playSound('pop');
+    if (result.settled?.popped.length) this.time.delayedCall(reducedMotion.matches ? 0 : popMotion.plumpMs, () => playSound('pop'));
     if (result.booster === 'bonk') playSound('bonk');
     if ((result.settled?.beesFreed ?? 0) + (result.turn?.beesFreed ?? 0)) playSound('rescue');
     if ((result.settled?.bonusShots ?? 0) + (result.turn?.bonusShots ?? 0)) playSound('bonus');
     if (result.turn?.moved) playSound('wind');
-    const animationTime = Math.max(this.animateCleared(result, before), this.animateFlight(result));
+    const receiveTime = reducedMotion.matches ? 0 : brambleGesture.readyMs - Math.min(brambleGesture.settleMs, this.brambleThrowMs ?? brambleGesture.readyMs);
+    const animationTime = Math.max(this.animateCleared(result, before), this.animateFlight(result), receiveTime);
     this.showShotFeedback(result, before);
     if (result.bossBeat && this.monty && !reducedMotion.matches) {
       this.tweens.add({ targets: this.monty, x: result.bossBeat === 'stalled' ? 57 : 83, scale: result.bossBeat === 'clasp' ? 1.12 : 1.06, duration: 130, yoyo: true, ease: 'Back.Out' });
@@ -838,6 +841,9 @@ class PlayScene extends Phaser.Scene {
     this.time.delayedCall(animationTime, () => {
       if (epoch !== this.epoch) return;
       this.resolving = false;
+      this.brambleThrowMs = undefined;
+      this.shooterBubble?.setAlpha(1);
+      this.animateBramble(0);
       this.drawAim();
       if (result.won) {
         this.pendingAction = undefined;
@@ -887,18 +893,21 @@ class PlayScene extends Phaser.Scene {
   }
   private sparkle(x: number, y: number, color: number, count = 5, shards = false): void {
     for (let i = 0; i < count && this.sparkleBudget > 0; i++, this.sparkleBudget--) {
-      const angle = i * Math.PI * 2 / count + .3;
-      const particle = shards ? this.add.triangle(x, y, 0, -4, 3, 3, -3, 2, color, .85).setOrigin(0, 0)
-        : this.add.ellipse(x, y, 4, 7, color, .8);
+      const angle = i * Math.PI * 2 / Math.max(3, count) + .3;
+      const particle = shards ? this.add.triangle(x, y, 0, -3, 2.5, 2, -2.5, 2, color, .8).setOrigin(0, 0)
+        : this.add.ellipse(x, y, 3, 4.5, color, .85).setStrokeStyle(.7, 0xfff8e7, .8);
       this.effectLayer.add(particle);
-      this.tweens.add({ targets: particle, x: x + Math.cos(angle) * 25, y: y + Math.sin(angle) * 23 + 8,
-        angle: 90, alpha: 0, scale: .3, duration: 450, ease: 'Sine.Out', onComplete: () => particle.destroy() });
+      this.tweens.add({ targets: particle, x: x + Math.cos(angle) * 19, y: y + Math.sin(angle) * 16 + 6,
+        angle: 55, alpha: 0, scale: .25, duration: popMotion.beadMs, ease: 'Cubic.Out', onComplete: () => particle.destroy() });
     }
   }
-  private impactRing(x: number, y: number, color: number, delay = 0): void {
-    const ring = this.add.circle(x, y, 12).setStrokeStyle(2.5, color, .85);
+  private impactRing(x: number, y: number, color: number): void {
+    if (this.sparkleBudget <= 0) return;
+    this.sparkleBudget--;
+    const ring = this.add.circle(x, y, popMotion.ringStartRadius).setStrokeStyle(1.7, color, .8);
     this.effectLayer.add(ring);
-    this.tweens.add({ targets: ring, scale: 2.6, alpha: 0, delay, duration: 330, ease: 'Sine.Out', onComplete: () => ring.destroy() });
+    this.tweens.add({ targets: ring, scale: popMotion.ringEndRadius / popMotion.ringStartRadius, alpha: 0,
+      duration: popMotion.ringMs, ease: 'Cubic.Out', onComplete: () => ring.destroy() });
   }
   private pollenGift(x: number, y: number): void {
     if (this.sparkleBudget <= 0) return;
@@ -907,57 +916,63 @@ class PlayScene extends Phaser.Scene {
     const target = { x: (bounds.x + bounds.width / 2 - canvas.x) * 390 / canvas.width, y: (bounds.y + bounds.height / 2 - canvas.y) * playHeight / canvas.height };
     const mote = this.add.star(x, y, 5, 3, 7, 0xffd778).setStrokeStyle(1, 0xfff8d4);
     this.effectLayer.add(mote);
-    this.tweens.add({ targets: mote, x: target.x, y: target.y, angle: 100, scale: .4, duration: 480, ease: 'Sine.InOut', onComplete: () => {
+    this.tweens.add({ targets: mote, x: target.x, y: target.y, angle: 100, scale: .4, duration: popMotion.pollenMs, ease: 'Sine.InOut', onComplete: () => {
       mote.destroy(); shotsCount.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.2)' }, { transform: 'scale(1)' }], { duration: 180 });
     } });
   }
   private animateCleared(result: FireResult, before: OccupiedCell[]): number {
-    const popped = result.settled?.popped ?? [];
-    const dropped = [...(result.settled?.dropped ?? []), ...(result.turn?.dropped ?? [])];
-    const cleared = [...popped, ...dropped];
-    if (reducedMotion.matches) { this.displayedBees = this.engine!.freedBees; updateHud(this); return 100; }
+    const plan = buildPopPresentation(result, before, reducedMotion.matches);
+    if (plan.reducedMotion) { this.displayedBees = this.engine!.freedBees; updateHud(this); return plan.durationMs; }
     this.sparkleBudget = 48;
-    const impact = result.trace.impact ? cellPosition(result.trace.impact) : result.settled?.placed ? cellPosition(result.settled.placed) : undefined;
-    if (impact && result.bloom) { this.impactRing(impact.x, impact.y, 0xf4b1cf); this.sparkle(impact.x, impact.y, 0xf4b1cf, 10); }
-    if (impact && result.booster) {
-      if (result.booster === 'rainbow') {
-        this.impactRing(impact.x, impact.y, 0xe1baea);
-        this.impactRing(impact.x, impact.y, 0xffe49c, 75);
-        Object.values(palette).forEach((color, i) => this.sparkle(impact.x + Math.cos(i) * 9, impact.y + Math.sin(i) * 9, color.fill, 2));
-      } else if (result.booster === 'double') {
-        this.impactRing(impact.x - 7, impact.y, 0xfff0ad);
-        this.impactRing(impact.x + 7, impact.y, palette[result.color].fill, 70);
-      } else {
-        this.impactRing(impact.x, impact.y, 0xffe29a);
-        this.impactRing(impact.x, impact.y, 0x9b663f, 85);
-        this.sparkle(impact.x, impact.y, 0xe9bd70, 14, true);
-      }
+    const epoch = this.epoch;
+    const at = (delay: number, action: () => void): void => {
+      this.time.delayedCall(delay, () => { if (epoch === this.epoch && this.engine) action(); });
+    };
+    for (const cue of plan.accents) {
+      const point = cellPosition(cue.cell);
+      const color = cue.kind === 'dew' ? 0xd9f6ff : cue.kind === 'bud' ? 0xe1a2b3 : cue.kind === 'echo' ? 0xbca8df
+        : result.booster === 'bonk' ? 0xe9bd70 : result.bloom ? 0xf4b1cf : result.booster === 'rainbow' ? 0xe1baea : palette[result.color].fill;
+      at(cue.delayMs, () => {
+        if (cue.ring) this.impactRing(point.x, point.y, cue.kind === 'impact' ? 0xfff7d8 : color);
+        this.sparkle(point.x, point.y, color, cue.beadCount, cue.kind === 'dew' || result.booster === 'bonk');
+      });
     }
-    for (const cell of result.settled?.cracked ?? []) {
-      const p = cellPosition(cell); this.sparkle(p.x, p.y, 0xe6faff, 5, true); this.impactRing(p.x, p.y, 0xb8e0eb);
-    }
-    for (const cell of transformedTileKinds(before, result).cells.slice(0, 12)) {
-      const point = cellPosition(cell);
-      const bud = before.find(prior => prior.row === cell.row && prior.col === cell.col)?.bubble.kind === 'bud';
-      const color = bud ? 0xe1a2b3 : 0xbca8df;
-      this.impactRing(point.x, point.y, color);
-      this.sparkle(point.x, point.y, color, 3);
-    }
-    const freed = cleared.filter((cell) => cell.bubble.bee).length;
-
-    cleared.forEach((cell, index) => {
-      const point = cellPosition(cell);
-      const orb = this.makeBubble(point.x, point.y, { ...cell.bubble, bee: false });
+    for (const cue of plan.pops) {
+      const point = cellPosition(cue.cell);
+      // The cleared bubble stays solid until its own little beat, then pinches into a burst.
+      const orb = this.makeBubble(point.x, point.y, { ...cue.cell.bubble, bee: false });
       this.effectLayer.add(orb);
-      const falling = index >= popped.length;
-      const delay = Math.min(index * 22, 180);
-      this.tweens.add({ targets: orb, y: point.y + (falling ? 130 : 0), scale: falling ? .7 : 1.25,
-        alpha: 0, angle: falling ? 22 : 0, delay, duration: falling ? 390 : 220, ease: falling ? 'Quad.In' : 'Sine.Out', onComplete: () => orb.destroy() });
-      if (cell.bubble.kind === 'pollen') { this.pollenGift(point.x, point.y); this.sparkle(point.x, point.y, 0xffd36b, 5); }
-      else if (index < 6) this.sparkle(point.x, point.y, cell.bubble.color ? palette[cell.bubble.color].fill : 0xd7ad69, 4, cell.bubble.kind === 'honeycomb');
-      if (cell.bubble.bee) this.flyBee(point.x, point.y, delay);
-    });
-    return freed ? 1100 : cleared.length ? 590 : result.settled?.cracked.length || result.settled?.transformed?.length ? 460 : 340;
+      this.tweens.add({ targets: orb, scaleX: popMotion.plumpX, scaleY: popMotion.plumpY,
+        delay: cue.delayMs, duration: popMotion.plumpMs, ease: 'Sine.Out', onComplete: () => {
+          this.tweens.add({ targets: orb, scaleX: popMotion.pinchX, scaleY: popMotion.pinchY, alpha: 0,
+            duration: popMotion.pinchMs, ease: 'Cubic.In', onComplete: () => orb.destroy() });
+        } });
+      at(cue.burstAtMs, () => {
+        this.sparkle(point.x, point.y, cue.cell.bubble.color ? palette[cue.cell.bubble.color].fill : 0xd7ad69,
+          cue.beadCount, cue.cell.bubble.kind === 'honeycomb');
+        if (cue.pollen) this.pollenGift(point.x, point.y);
+        if (cue.cell.bubble.bee) this.flyBee(point.x, point.y, 0);
+      });
+    }
+    for (const cue of plan.drops) {
+      const point = cellPosition(cue.cell);
+      const move = cue.source === 'wind' ? result.turn?.moves.find(m => m.to.row === cue.cell.row && m.to.col === cue.cell.col) : undefined;
+      const start = move ? cellPosition(move.from) : point;
+      const orb = this.makeBubble(start.x, start.y, { ...cue.cell.bubble, bee: false });
+      this.effectLayer.add(orb);
+      if (move) this.tweens.add({ targets: orb, x: point.x, y: point.y, duration: 260, ease: 'Sine.InOut' });
+      this.tweens.add({ targets: orb, y: point.y + 3, scaleX: 1.025, scaleY: .97,
+        delay: cue.delayMs, duration: popMotion.dropReleaseMs, ease: 'Sine.InOut', onComplete: () => {
+          this.tweens.add({ targets: orb, x: point.x + cue.driftX, y: point.y + 125, scaleX: .74, scaleY: .82,
+            alpha: 0, angle: cue.angle, duration: popMotion.dropMs - popMotion.dropReleaseMs, ease: 'Quad.In', onComplete: () => orb.destroy() });
+        } });
+      at(cue.releaseAtMs, () => {
+        this.sparkle(point.x, point.y, cue.cell.bubble.color ? palette[cue.cell.bubble.color].fill : 0xd7ad69, cue.beadCount);
+        if (cue.pollen) this.pollenGift(point.x, point.y);
+        if (cue.cell.bubble.bee) this.flyBee(point.x, point.y, 0);
+      });
+    }
+    return plan.durationMs;
   }
   private flyBee(x: number, y: number, delay: number): void {
     const bee = this.add.container(x, y);

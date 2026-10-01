@@ -89,7 +89,7 @@ describe('new tile inspection and reveal feedback', () => {
     expect(transforms.buds).toBe(1);
     expect(transformationFeedback(before, result)[0]).toBe('Bud opened · match its new color ◒');
     expect(main).toContain('previous.bubble.kind !== cell.bubble.kind');
-    expect(main).toContain('cells.slice(0, 12)');
+    expect(main).toContain('buildPopPresentation(result, before, reducedMotion.matches)');
     expect(main).toContain('this.sparkleBudget = 48');
   });
 });
