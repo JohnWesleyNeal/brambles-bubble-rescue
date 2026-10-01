@@ -10,7 +10,7 @@ import { consumeBooster, loadSave, recordLoss, recordWin, recordMastery, refillG
 import { restoreActiveRun, type RestoredRun, type RunAction } from './run';
 import type { ShotTrace } from './shot';
 import './style.css';
-import { brambleIdlePose, brambleMotionAllowed, brambleTossPose, giftReadout, nextBubblePoint } from './play-presentation';
+import { brambleIdlePose, brambleMotionAllowed, brambleTossPose, brambleArmJoint, brambleBodyPoint, giftReadout, nextBubblePoint } from './play-presentation';
 import { coaching, suggestShot } from './advice';
 import { activityLevel, activityUnlocked, bossPhases, challengeFor, type Activity } from './activities';
 import { recordActivityResult } from './activity-progress';
@@ -380,11 +380,11 @@ class PlayScene extends Phaser.Scene {
     this.brambleThrowMs = undefined;
     this.brambleSize = { width: 92, height: 96 };
     const ground = this.add.graphics();
-    ground.fillStyle(0x7a6845, .11).fillEllipse(127, 734, 84, 8);
+    ground.fillStyle(0x7a6845, .11).fillEllipse(brambleBodyPoint.x, 741, 72, 7);
     this.brambleArms = this.add.graphics();
-    this.bramble = this.add.image(127, 694, 'bramble-launcher').setDisplaySize(this.brambleSize.width, this.brambleSize.height);
-    this.blink = this.add.image(127, 694, 'bramble-launcher-blink').setDisplaySize(this.brambleSize.width, this.brambleSize.height).setVisible(false);
-    this.sceneryLayer.add([ground, this.brambleArms, this.bramble, this.blink]);
+    this.bramble = this.add.image(brambleBodyPoint.x, brambleBodyPoint.y, 'bramble-launcher').setDisplaySize(this.brambleSize.width, this.brambleSize.height);
+    this.blink = this.add.image(brambleBodyPoint.x, brambleBodyPoint.y, 'bramble-launcher-blink').setDisplaySize(this.brambleSize.width, this.brambleSize.height).setVisible(false);
+    this.sceneryLayer.add([ground, this.bramble, this.blink, this.brambleArms]);
     this.animateBramble(0);
     if (this.engine?.activity?.kind === 'boss') {
       this.monty = this.add.image(73, 555, 'magpie').setDisplaySize(110, 110);
@@ -724,7 +724,7 @@ class PlayScene extends Phaser.Scene {
     const idle = brambleIdlePose(this.brambleClock, this.brambleMotion);
     const toss = brambleTossPose(this.aimAngle, this.brambleThrowMs, reducedMotion.matches || menuOpen);
     const angle = idle.angle + toss.lean;
-    const center = { x: 127, y: 694 - idle.rise - toss.lift };
+    const center = { x: brambleBodyPoint.x, y: brambleBodyPoint.y - idle.rise - toss.lift };
     const width = this.brambleSize.width * idle.scaleX;
     const height = this.brambleSize.height * idle.scaleY;
     for (const image of [this.bramble, this.blink]) image.setPosition(center.x, center.y).setAngle(angle).setDisplaySize(width, height);
@@ -737,17 +737,38 @@ class PlayScene extends Phaser.Scene {
     };
     const arms = this.brambleArms;
     arms.clear();
-    const arm = (from: { x: number; y: number }, bend: { x: number; y: number }, paw: { x: number; y: number }, holding: boolean) => {
-      arms.lineStyle(13, 0x202e2b).beginPath().moveTo(from.x, from.y).lineTo(bend.x, bend.y).lineTo(paw.x, paw.y).strokePath();
-      arms.fillStyle(0x202e2b).fillCircle(bend.x, bend.y, 6.5).fillEllipse(paw.x, paw.y, holding ? 20 : 14, 13);
-      arms.lineStyle(9, 0x3d4b42).beginPath().moveTo(from.x, from.y).lineTo(bend.x, bend.y).lineTo(paw.x, paw.y).strokePath();
-      arms.fillStyle(0x3d4b42).fillCircle(bend.x, bend.y, 4.5).fillEllipse(paw.x, paw.y, holding ? 16 : 10, 9);
-      if (holding) {
-        arms.lineStyle(1.3, 0xcacdb5, .8).lineBetween(paw.x - 5, paw.y + 2, paw.x - 2, paw.y + 2).lineBetween(paw.x + 1, paw.y + 2, paw.x + 4, paw.y + 2);
-      }
+    const from = shoulder(157, 139);
+    const paw = { x: toss.handX, y: toss.handY };
+    const bend = brambleArmJoint(from, paw);
+    // Soft curved silhouettes, rather than the old two straight lever segments.
+    const shape = (path: Phaser.Curves.Path, color: number, outline: number, lineWidth = 1.7) => {
+      const points = path.getPoints(12);
+      arms.fillStyle(color).fillPoints(points, true);
+      arms.lineStyle(lineWidth, outline).strokePoints(points, true);
     };
-    arm(shoulder(48, 156), { x: 92, y: 722 - idle.rise }, { x: 86, y: 728 - idle.rise - toss.lift * .5 }, false);
-    arm(shoulder(173, 154), { x: 171, y: 719 - toss.lift }, { x: toss.handX, y: toss.handY }, true);
+    const upper = new Phaser.Curves.Path(from.x - 5, from.y - 4)
+      .cubicBezierTo(bend.x - 2, bend.y + 5, from.x - 7, from.y + 5, bend.x - 10, bend.y + 3)
+      .cubicBezierTo(bend.x + 4, bend.y - 6, bend.x + 6, bend.y + 7, bend.x + 7, bend.y - 1)
+      .cubicBezierTo(from.x - 5, from.y - 4, from.x + 10, from.y + 4, from.x + 7, from.y - 5);
+    shape(upper, 0x485647, 0x293c31);
+    const forearm = new Phaser.Curves.Path(bend.x - 3, bend.y - 5)
+      .cubicBezierTo(paw.x - 1, paw.y - 4, bend.x + 4, bend.y - 6, paw.x - 10, paw.y - 4)
+      .cubicBezierTo(paw.x + 10, paw.y, paw.x + 4, paw.y - 7, paw.x + 11, paw.y - 5)
+      .cubicBezierTo(paw.x - 6, paw.y + 5, paw.x + 11, paw.y + 6, paw.x + 1, paw.y + 6)
+      .cubicBezierTo(bend.x - 3, bend.y + 5, paw.x - 13, paw.y + 8, bend.x + 3, bend.y + 8)
+      .cubicBezierTo(bend.x - 3, bend.y - 5, bend.x - 7, bend.y + 3, bend.x - 7, bend.y - 2);
+    shape(forearm, 0x485647, 0x293c31);
+    // A short shirt sleeve overlaps the shoulder, anchoring the arm to the torso.
+    const sleeve = new Phaser.Curves.Path(from.x - 6, from.y - 6)
+      .cubicBezierTo(from.x + 11, from.y + 4, from.x + 2, from.y - 10, from.x + 8, from.y - 6)
+      .cubicBezierTo(from.x - 1, from.y + 7, from.x + 8, from.y + 8, from.x + 1, from.y + 8)
+      .cubicBezierTo(from.x - 6, from.y - 6, from.x - 5, from.y + 3, from.x - 7, from.y);
+    shape(sleeve, 0xe3a94f, 0xad7738, 1.2);
+    arms.lineStyle(1.5, 0x82917a, .6).lineBetween(bend.x + 3, bend.y + 1, paw.x - 9, paw.y + 1);
+    arms.lineStyle(1.2, 0xd7dbc1, .9)
+      .lineBetween(paw.x - 1, paw.y - 2, paw.x, paw.y + 1)
+      .lineBetween(paw.x + 4, paw.y - 2, paw.x + 5, paw.y + 1);
+
   }
 
   private land(): void {

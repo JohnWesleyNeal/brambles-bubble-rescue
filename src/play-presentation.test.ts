@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brambleIdlePose, brambleMotionAllowed, brambleTossPose, giftReadout, nextBubblePoint } from './play-presentation';
+import { brambleIdlePose, brambleMotionAllowed, brambleTossPose, brambleArmJoint, brambleBodyPoint, giftReadout, nextBubblePoint } from './play-presentation';
 import { launcherPoint, aimCancelRadius } from './aim-controls';
 import { GameEngine } from './engine';
 import { levels } from './levels';
@@ -76,5 +76,33 @@ describe('Bramble at the launcher', () => {
   });
   it('keeps the whole launch gesture still with reduced motion', () => {
     for (const angle of [-1, 0, 1]) for (const time of [0, 90, 180, 360]) expect(brambleTossPose(angle, time, true)).toEqual({ handX: 195, handY: 711, lean: 0, lift: 0 });
+  });
+});
+
+
+describe('Bramble’s full-body stance', () => {
+  it('stands closer to the bubble, leaving the unchanged launch and Next spaces open', () => {
+    expect(brambleBodyPoint).toEqual({ x: 143, y: 694 });
+    expect(launcherPoint).toEqual({ x: 195, y: 690 });
+    expect(brambleBodyPoint.x + 46).toBeLessThan(nextBubblePoint.x - 24);
+  });
+  it('keeps a bent elbow instead of a straight horizontal lever', () => {
+    const shoulder = { x: 163, y: 704 };
+    const elbow = brambleArmJoint(shoulder, { x: 195, y: 711 });
+    expect(elbow.x).toBeCloseTo(173.24);
+    expect(elbow.y).toBe(722);
+    expect(elbow.y).toBeGreaterThan(shoulder.y);
+    expect(elbow.y).toBeGreaterThan(711);
+  });
+  it('keeps both limb segments short through aim, release and recovery', () => {
+    for (const aim of [-1.25, 0, 1.25]) for (let time = 0; time <= 360; time += 20) {
+      const paw = brambleTossPose(aim, time);
+      const shoulder = { x: 163, y: 704 - paw.lift };
+      const elbow = brambleArmJoint(shoulder, { x: paw.handX, y: paw.handY });
+      expect(Math.hypot(elbow.x - shoulder.x, elbow.y - shoulder.y)).toBeLessThan(27);
+      expect(Math.hypot(paw.handX - elbow.x, paw.handY - elbow.y)).toBeLessThan(36);
+      expect(elbow.y).toBeGreaterThan(700);
+      expect(elbow.y).toBeLessThanOrEqual(724);
+    }
   });
 });

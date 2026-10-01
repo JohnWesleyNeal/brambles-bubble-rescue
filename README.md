@@ -93,3 +93,5 @@ The play screen now separates the shooting dock from the board. A labeled Next b
 Bramble now keeps you company with a tiny breathing motion, gentle sway and occasional blink. He settles while you aim or open a menu, stays visible beside earned Bloom, and remains completely still with reduced motion enabled. The motion is visual only.
 
 The launcher companion now has a larger, full-body silhouette and articulated paws. Bramble cups the loaded bubble, follows your aiming direction, lifts his paw as you release, then returns to his ready pose. His visible motion never moves the real launch point, collision grid or next-bubble queue. Reduced motion keeps the companion in a still ready pose.
+
+A focused character pass gives the launcher Bramble a rounded full-body stance, separate feet, readable eyes and a compact jointed throwing arm. A short sleeve and curved furry paw keep the bubble visibly connected to him; aim, toss and recovery still affect artwork only.

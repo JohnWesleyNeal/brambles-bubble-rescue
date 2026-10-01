@@ -1,5 +1,6 @@
 import { boosters, boosterById, type BoosterId } from './boosters';
 /** Presentation only: the shot origin and every board coordinate stay unchanged. */
+export const brambleBodyPoint = { x: 143, y: 694 };
 export const nextBubblePoint = { x: 314, y: 706 };
 export function giftReadout(inventory: Record<BoosterId, number>, unlocked: number, allowed: boolean, armed?: BoosterId): { text: string; label: string; equipped: boolean } {
   if (!allowed) return { text: 'Off', label: 'Open gifts, packed away for this challenge', equipped: false };
@@ -29,4 +30,9 @@ export function brambleTossPose(angle: number, elapsedMs?: number, reducedMotion
   return { handX: 195 - Math.sin(aim) * 10 + Math.sin(aim) * release * 6,
     handY: 711 - Math.abs(Math.sin(aim)) * 4 - release * 26,
     lean: aim * .7 + release * 3.5, lift: release * 2.5 };
+}
+
+/** A compact bent elbow keeps Bramble’s paw attached without a rigid reach. */
+export function brambleArmJoint(shoulder: { x: number; y: number }, paw: { x: number; y: number }): { x: number; y: number } {
+  return { x: shoulder.x + (paw.x - shoulder.x) * .32, y: shoulder.y + 18 - Math.max(0, 711 - paw.y) * .45 };
 }
