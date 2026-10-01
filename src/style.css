@@ -670,3 +670,61 @@ body { background: radial-gradient(ellipse at 50% 35%, #3c6854, #102b27 80%); }
   #hud .mechanic-status { top: 38.11cqw; }
   #hud .mechanic-chip { min-height: 14px; padding: 1px 4px; font-size: 8px; line-height: 1.2; }
 }
+/* The painted proprietor keeps the same proportions as the game companion. */
+.emporium-proprietor img { object-fit: contain; }
+
+/* Ten chapter stops stay browseable without squeezing labels or touch targets. */
+.chapter-tabs {
+  display: flex; gap: 7px; margin: 0 -3px 10px; padding: 3px 3px 9px;
+  overflow-x: auto; overscroll-behavior-x: contain; touch-action: pan-x;
+  scroll-snap-type: x proximity; scrollbar-width: thin; scrollbar-color: #a9b99a #e7edda;
+}
+.chapter-tab {
+  flex: 0 0 132px; min-width: 132px; min-height: 60px; padding: 8px 7px;
+  scroll-snap-align: center; border-width: 1px; line-height: 1.2;
+}
+.chapter-tab strong, .chapter-tab small { display: block; }
+.chapter-tab strong { font-size: 12px; }
+.chapter-tab small { margin-top: 5px; font-size: 9px; font-weight: 700; }
+.chapter-tab.locked { color: #76816f; background: #e9eddf; border-style: dashed; }
+.chapter-tab.active { border-color: #b07846; background: #c27b49; color: #fffaf0; border-style: solid; }
+.chapter-tabs::-webkit-scrollbar { height: 5px; }
+.chapter-tabs::-webkit-scrollbar-thumb { background: #a9b99a; border-radius: 5px; }
+.chapter-range { margin: 1px 0 12px; color: #65826b; font-size: 10px; font-weight: 900; letter-spacing: .2px; }
+.chapter-panel { max-height: 65%; overflow-y: auto; overscroll-behavior-y: contain; }
+.chapter-grid { grid-template-columns: repeat(5, minmax(44px, 1fr)); gap: 7px; }
+.chapter-grid .level-tile { min-width: 44px; min-height: 44px; }
+.chapter-heading .icon-button { width: 44px; height: 44px; }
+.chapter-quick-actions button { min-width: 44px; min-height: 44px; }
+@container (max-width: 330px) {
+  .chapter-heading { top: 5%; }
+  .chapter-heading h2 { font-size: 25px; margin-top: 30px; }
+  .chapter-heading p { font-size: 11px; max-width: 210px; }
+  .chapter-panel { bottom: 5%; padding: 11px 10px 8px; max-height: 65%; }
+  .chapter-tab { flex-basis: 126px; min-width: 126px; }
+  .chapter-grid { grid-template-columns: repeat(4, minmax(44px, 1fr)); gap: 6px; }
+  .chapter-grid .level-tile { height: 49px; }
+  .chapter-grid .level-tile span { font-size: 18px; }
+  .chapter-panel p { margin-top: 10px; font-size: 10px; line-height: 1.4; }
+  .chapter-quick-actions { margin-top: 2px; }
+  .chapter-range { margin-bottom: 9px; }
+}
+
+/* The compact pills keep their place; their tappable region reaches upward. */
+#hud .mechanic-status { top: calc(37.87cqw - 24px); height: 44px; align-items: flex-end; }
+#hud button.mechanic-chip {
+  position: relative; isolation: isolate; display: flex; align-items: flex-end; justify-content: center;
+  min-width: 44px; min-height: 44px; height: 44px; padding: 0 6px 2px;
+  border: 0; background: none; line-height: 1.2;
+}
+#hud button.mechanic-chip::before {
+  content: ''; position: absolute; z-index: -1; bottom: 0; left: 0; right: 0; height: 20px;
+  border: 1px solid #bccbac; border-radius: 16px; background: #edf1dce8;
+}
+#hud button.mechanic-chip.armed::before { border-color: #c38c62; background: #f7e2ba; }
+@container (max-width: 330px) {
+  #hud .mechanic-status { top: calc(38.11cqw - 30px); }
+  #hud button.mechanic-chip { padding: 0 5px 2px; }
+  #hud button.mechanic-chip::before { height: 14px; }
+}
+#hud button.mechanic-chip.armed { background: none; }

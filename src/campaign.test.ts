@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GameEngine } from './engine';
 import { levels } from './levels';
 import { levels as edition3 } from './levels-v3';
+import { levels as edition5 } from './levels-v5';
 import { restoreActiveRun, type RunAction } from './run';
 import { suggestShot } from './advice';
 
@@ -27,7 +28,7 @@ const routes = [
 ];
 
 describe('edition four campaign', () => {
-  for (const level of levels) it(`level ${level.id} has a normal-shot three-star route`, () => {
+  for (const level of edition5) it(`level ${level.id} has a normal-shot three-star route`, () => {
     const game = new GameEngine(level, 4);
     for (const move of routes[level.id - 1].split(' ')) {
       if (move.endsWith('s')) game.swap();
@@ -80,7 +81,7 @@ describe('edition four campaign', () => {
 });
 
 describe('edition five campaign', () => {
-  for (const level of levels) it(`level ${level.id} remains winnable with regular shots`, () => {
+  for (const level of edition5) it(`level ${level.id} remains winnable with regular shots`, () => {
     const game = new GameEngine(level, 5);
     const route = level.id === 28 ? '-0.85s -0.85 -1.2 -1.1 -1.2s -1.1 -1.15 -1.2 -1.2' : routes[level.id - 1];
     for (const move of route.split(' ')) {

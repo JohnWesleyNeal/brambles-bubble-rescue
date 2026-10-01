@@ -1,10 +1,11 @@
 export type BubbleColor = 'R' | 'O' | 'Y' | 'G' | 'B' | 'P';
-export type TileKind = 'normal' | 'pollen' | 'honeycomb' | 'dew' | 'bloom';
+export type TileKind = 'normal' | 'pollen' | 'honeycomb' | 'dew' | 'bloom' | 'bud' | 'echo';
 export interface Cell { row: number; col: number }
 export interface WindStrip { row: number; start: number; length: number }
 export type SpecialTile = Cell & (
   | { kind: 'honeycomb' }
-  | { kind: 'pollen' | 'dew' }
+  | { kind: 'pollen' | 'dew' | 'echo' }
+  | { kind: 'bud'; nextColor: BubbleColor }
   | { kind: 'bloom'; alternate: BubbleColor }
 );
 export interface Bubble {
@@ -12,6 +13,7 @@ export interface Bubble {
   bee: boolean;
   kind: TileKind;
   alternate?: BubbleColor;
+  nextColor?: BubbleColor;
 }
 export interface OccupiedCell extends Cell { bubble: Bubble }
 export interface SettleResult {
@@ -19,6 +21,10 @@ export interface SettleResult {
   popped: OccupiedCell[];
   dropped: OccupiedCell[];
   cracked: Cell[];
+  /** Layers revealed and Echo clusters recolored during this shot. */
+  transformed?: Cell[];
+  /** Number of follow-on Echo matching waves, excluding the initial clear. */
+  chains?: number;
   beesFreed: number;
   bonusShots: number;
 }
@@ -59,13 +65,13 @@ export class BubbleBoard {
   private windOffset = 0;
 
   clone(): BubbleBoard {
-    const copy = new BubbleBoard([]);
+    const copy = new BubbleBoard([], [], this.expandedRules);
     copy.cells = new Map([...this.cells].map(([key, bubble]) => [key, { ...bubble }]));
     copy.windOffset = this.windOffset;
     return copy;
   }
 
-  constructor(rows: string[], specials: SpecialTile[] = []) {
+  constructor(rows: string[], specials: SpecialTile[] = [], private readonly expandedRules = true) {
     rows.forEach((text, row) => {
       if (text.length !== columnsInRow(row)) throw new Error(`Row ${row} needs ${columnsInRow(row)} cells`);
       [...text].forEach((symbol, col) => {
@@ -79,6 +85,9 @@ export class BubbleBoard {
       if (special.row < 0 || special.row >= MAX_ROWS || special.col < 0 || special.col >= columnsInRow(special.row)) {
         throw new Error(`Special outside board: ${key(special)}`);
       }
+      if (!this.expandedRules && (special.kind === 'bud' || special.kind === 'echo')) throw new Error('New tile needs edition six rules');
+      if (special.kind === 'bud' && (!COLORS.has(special.nextColor))) throw new Error('Bud needs a valid next color');
+      if (special.kind === 'bloom' && !COLORS.has(special.alternate)) throw new Error('Chameleon needs a valid alternate color');
       const current = this.get(special);
       if (special.kind === 'honeycomb') {
         if (current) throw new Error(`Honeycomb needs an empty cell: ${key(special)}`);
@@ -87,7 +96,8 @@ export class BubbleBoard {
         if (!current || !current.color || current.kind !== 'normal') throw new Error(`Special needs a colored bubble: ${key(special)}`);
         this.cells.set(key(special), {
           ...current, kind: special.kind,
-          ...(special.kind === 'bloom' ? { alternate: special.alternate } : {})
+          ...(special.kind === 'bloom' ? { alternate: special.alternate } : {}),
+          ...(special.kind === 'bud' ? { nextColor: special.nextColor } : {})
         });
       }
     }
@@ -102,7 +112,7 @@ export class BubbleBoard {
   }
   beeCount(): number { return this.entries().filter(({ bubble }) => bubble.bee).length; }
   availableColors(): BubbleColor[] {
-    return [...new Set(this.entries().map(({ bubble }) => bubble.color).filter((color): color is BubbleColor => color !== null))];
+    return [...new Set(this.entries().flatMap(({ bubble }) => [bubble.color, ...(bubble.nextColor ? [bubble.nextColor] : [])]).filter((color): color is BubbleColor => color !== null))];
   }
   beeColors(): BubbleColor[] {
     return [...new Set(this.entries().filter(({ bubble }) => bubble.bee && bubble.color).map(({ bubble }) => bubble.color as BubbleColor))];
@@ -165,6 +175,11 @@ export class BubbleBoard {
   }
 
   private clearGroup(group: Cell[], placed: Cell | null): SettleResult {
+    if (this.expandedRules && this.entries().some(({ bubble }) => bubble.kind === 'bud' || bubble.kind === 'echo')) return this.clearExpandedGroup(group, placed);
+    return this.clearLegacyGroup(group, placed);
+  }
+
+  private clearLegacyGroup(group: Cell[], placed: Cell | null): SettleResult {
     const popped: OccupiedCell[] = [];
     const cracked: Cell[] = [];
     if (group.length) {
@@ -197,9 +212,83 @@ export class BubbleBoard {
     };
   }
 
+  /** Each Echo converts once, then becomes ordinary. Every wave consumes or
+   * transforms tiles, so the original tile count bounds all follow-on work. */
+  private clearExpandedGroup(group: Cell[], placed: Cell | null, force = false, shock = true): SettleResult {
+    const popped: OccupiedCell[] = [];
+    const cracked = new Map<string, Cell>();
+    const transformed = new Map<string, Cell>();
+    const initialCount = this.cells.size;
+    let wave = group;
+    let chains = 0;
+    const sorted = (cells: Cell[]) => cells.slice().sort((a, b) => a.row - b.row || a.col - b.col);
+    for (let step = 0; wave.length && step <= initialCount * 3; step++) {
+      const removed: OccupiedCell[] = [];
+      for (const member of sorted(wave)) {
+        const tile = this.get(member);
+        if (!tile) continue;
+        if (!force && tile.kind === 'dew') {
+          this.cells.set(key(member), { ...tile, kind: 'normal' });
+          cracked.set(key(member), member);
+        } else if (!force && tile.kind === 'bud' && tile.nextColor) {
+          const { nextColor, ...rest } = tile;
+          this.cells.set(key(member), { ...rest, color: nextColor, kind: 'normal' });
+          transformed.set(key(member), member);
+        } else {
+          removed.push({ ...member, bubble: tile });
+          this.cells.delete(key(member));
+        }
+      }
+      force = false;
+      popped.push(...removed);
+      if (shock || step > 0) for (const member of removed) for (const neighbor of neighborCells(member)) {
+        const tile = this.get(neighbor);
+        if (tile?.kind === 'dew') {
+          this.cells.set(key(neighbor), { ...tile, kind: 'normal' });
+          cracked.set(key(neighbor), neighbor);
+        }
+      }
+      // Resolve competing adjacent colors in stable board order. A converted
+      // cluster is no longer Echo, preventing repeat/reverse conversions.
+      const recolored = new Map<string, Cell>();
+      const candidates = new Map<string, Cell>();
+      for (const member of removed) {
+        if (!member.bubble.color) continue;
+        for (const neighbor of sorted(neighborCells(member))) {
+          if (this.get(neighbor)?.kind !== 'echo') continue;
+          const echoes = sorted(this.connected(neighbor, (tile) => tile.kind === 'echo'));
+          for (const echo of echoes) {
+            const tile = this.get(echo)!;
+            this.cells.set(key(echo), { ...tile, color: member.bubble.color, kind: 'normal' });
+            transformed.set(key(echo), echo);
+            recolored.set(key(echo), echo);
+          }
+        }
+      }
+      // A later trigger may recolor an Echo that belonged to an earlier
+      // candidate group. Qualify groups only after every conversion is done.
+      for (const echo of sorted([...recolored.values()])) {
+        const color = this.get(echo)?.color;
+        if (!color) continue;
+        const matching = this.connected(echo, (tile) => tile.color === color);
+        if (matching.length >= 3) for (const cell of matching) candidates.set(key(cell), cell);
+      }
+      wave = sorted([...candidates.values()]);
+      if (wave.length) chains++;
+    }
+    const dropped = popped.length ? this.dropUnanchored() : [];
+    const cleared = [...popped, ...dropped];
+    return {
+      placed, popped, dropped, cracked: sorted([...cracked.values()]), transformed: sorted([...transformed.values()]), chains,
+      beesFreed: cleared.filter(({ bubble }) => bubble.bee).length,
+      bonusShots: cleared.filter(({ bubble }) => bubble.kind === 'pollen').length * 2
+    };
+  }
+
   bonk(cell: Cell, shock = false): SettleResult {
     const bubble = this.get(cell);
     if (!bubble) throw new Error('Bonk needs a tile');
+    if (this.expandedRules && this.entries().some(({ bubble }) => bubble.kind === 'bud' || bubble.kind === 'echo')) return this.clearExpandedGroup([cell], null, true, shock);
     this.cells.delete(key(cell));
     const popped = [{ ...cell, bubble }];
     const cracked: Cell[] = [];

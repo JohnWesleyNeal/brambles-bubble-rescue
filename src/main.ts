@@ -10,7 +10,9 @@ import { consumeBooster, loadSave, recordLoss, recordWin, recordMastery, refillG
 import { restoreActiveRun, type RestoredRun, type RunAction } from './run';
 import type { ShotTrace } from './shot';
 import './style.css';
-import { brambleIdlePose, brambleMotionAllowed, brambleTossPose, brambleShoulder, bramblePawOutline, brambleSleeveOutline, brambleBodyPoint, brambleDisplaySize, bramblePawScale, brambleGroundPoint, playHeight, giftReadout, nextBubblePoint } from './play-presentation';
+import { chapterChoices, chapterIndexForLevel, chapterTheme, isChapterEnd, inspectedBubbleDetail, previewShotOutcome, transformationFeedback, transformedTileKinds } from './campaign-presentation';
+import { brambleIdlePose, brambleMotionAllowed, playHeight, giftReadout, nextBubblePoint } from './play-presentation';
+import { brambleArt, brambleArtSize, brambleArtOrigin, brambleArtGround, brambleArtPose, brambleArtPoint, bramblePawMattes, type BrambleArtFrame } from './bramble-art';
 import { coaching, suggestShot } from './advice';
 import { activityLevel, activityUnlocked, bossPhases, challengeFor, type Activity } from './activities';
 import { recordActivityResult } from './activity-progress';
@@ -108,11 +110,12 @@ class PlayScene extends Phaser.Scene {
   private levelIndex = 0;
   displayedBees = 0;
   private bramble?: Phaser.GameObjects.Image;
-  private blink?: Phaser.GameObjects.Image;
+  private bramblePaint?: Record<BrambleArtFrame, Phaser.GameObjects.Image>;
+  private bramblePawFront?: Phaser.GameObjects.Image;
+  private bramblePawMask?: Phaser.GameObjects.Graphics;
   private brambleClock = 0;
   private brambleMotion = 0;
-  private brambleSize = { ...brambleDisplaySize };
-  private brambleArms?: Phaser.GameObjects.Graphics;
+
   private brambleThrowMs?: number;
   private monty?: Phaser.GameObjects.Image;
   private trailClock = 0;
@@ -141,19 +144,17 @@ class PlayScene extends Phaser.Scene {
   constructor() { super('Play'); }
   preload(): void {
     this.load.image('magpie', `${BASE}magpie.png`);
-    this.load.image('bramble', `${BASE}bramble.png`);
+    for (const [frame, path] of Object.entries(brambleArt)) this.load.image(`bramble-painted-${frame}`, `${BASE}${path}`);
     this.load.image('bee', `${BASE}bee.png`);
     this.load.image('bee-body', `${BASE}bee-body.png`);
-    this.load.image('bramble-blink', `${BASE}bramble-blink.png`);
-    this.load.image('bramble-launcher', `${BASE}bramble-launcher.png`);
-    this.load.image('bramble-launcher-blink', `${BASE}bramble-launcher-blink.png`);
+
   }
   create(): void {
     this.makeBubbleTextures();
     this.sceneryLayer = this.add.container(0, 0);
-    this.boardLayer = this.add.container(0, 0);
-    this.effectLayer = this.add.container(0, 0);
-    this.aimGraphics = this.add.graphics();
+    this.boardLayer = this.add.container(0, 0).setDepth(3);
+    this.effectLayer = this.add.container(0, 0).setDepth(4);
+    this.aimGraphics = this.add.graphics().setDepth(1);
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.inspectMode) { this.inspectAt(pointer.x, pointer.y); return; }
       if (!this.engine || this.engine.won || this.engine.lost || this.engine.awaitingTopUp || this.flying || this.resolving || !overlay.classList.contains('hidden') || pointer.y < 145 || pointer.y > 775 || !this.aimGesture.begin(pointer.id)) return;
@@ -224,6 +225,7 @@ class PlayScene extends Phaser.Scene {
     this.setInspectMode(false);
     this.flying?.sprite.destroy();
     this.flying = undefined;
+    this.destroyPaintedBramble();
     this.sceneryLayer?.removeAll(true);
     this.boardLayer?.removeAll(true);
     this.effectLayer?.removeAll(true);
@@ -347,14 +349,9 @@ class PlayScene extends Phaser.Scene {
   refreshAimGuide(): void { this.drawAim(); }
 
   private drawScenery(): void {
+    this.destroyPaintedBramble();
     this.sceneryLayer.removeAll(true);
-    const chapter = Math.floor(this.levelIndex / 10);
-    const themes = [
-      { fill: 0xfaf5dc, line: 0x3a866b, ink: '#346c5b', name: 'MEADOW DAYS', symbol: '✿' },
-      { fill: 0xffedca, line: 0xa9804d, ink: '#89613c', name: 'HONEYCOMB GROVE', symbol: '⬢' },
-      { fill: 0xe1eff0, line: 0x5c8d99, ink: '#397281', name: 'BREEZY BRAMBLES', symbol: '↗' }
-    ];
-    const theme = themes[chapter];
+    const theme = chapterTheme(this.levelIndex);
     const panel = this.add.graphics();
     panel.fillStyle(0x234b3d, .12).fillRoundedRect(19, 164, 352, 495, 22);
     panel.fillStyle(theme.fill, .94).fillRoundedRect(19, 159, 352, 494, 22);
@@ -365,8 +362,8 @@ class PlayScene extends Phaser.Scene {
     panel.fillStyle(0xfff6df, .97).fillRoundedRect(19, 664, 352, 210, 23);
     panel.lineStyle(1.5, 0xffffff, .8).strokeRoundedRect(19, 664, 352, 210, 23);
     this.sceneryLayer.add(panel);
-    this.sceneryLayer.add(this.add.text(195, 641, `${theme.symbol}  ${theme.name}  ${theme.symbol}`, {
-      fontFamily: 'Trebuchet MS, sans-serif', fontSize: '9px', fontStyle: 'bold', color: theme.ink, letterSpacing: 1.8
+    this.sceneryLayer.add(this.add.text(84, 641, `${theme.symbol}  ${theme.name}  ${theme.symbol}`, {
+      fontFamily: 'Trebuchet MS, sans-serif', fontSize: '8px', fontStyle: 'bold', color: theme.ink, letterSpacing: .6, wordWrap: { width: 110 }, align: 'center'
     }).setOrigin(.5));
     this.sceneryLayer.add(this.add.text(nextBubblePoint.x, 677, 'NEXT', {
       fontFamily: 'Trebuchet MS, sans-serif', fontSize: '9px', fontStyle: 'bold', color: '#71826a', letterSpacing: 1.8
@@ -378,13 +375,15 @@ class PlayScene extends Phaser.Scene {
     this.brambleClock = 0;
     this.brambleMotion = 0;
     this.brambleThrowMs = undefined;
-    this.brambleSize = { ...brambleDisplaySize };
     const ground = this.add.graphics();
-    ground.fillStyle(0x7a6845, .11).fillEllipse(brambleGroundPoint.x, brambleGroundPoint.y, 88, 8);
-    this.brambleArms = this.add.graphics();
-    this.bramble = this.add.image(brambleBodyPoint.x, brambleBodyPoint.y, 'bramble-launcher').setDisplaySize(this.brambleSize.width, this.brambleSize.height);
-    this.blink = this.add.image(brambleBodyPoint.x, brambleBodyPoint.y, 'bramble-launcher-blink').setDisplaySize(this.brambleSize.width, this.brambleSize.height).setVisible(false);
-    this.sceneryLayer.add([ground, this.bramble, this.blink, this.brambleArms]);
+    ground.fillStyle(0x7a6845, .11).fillEllipse(brambleArtGround.x, brambleArtGround.y, 72, 8);
+    this.sceneryLayer.add(ground);
+    const painted = (frame: BrambleArtFrame) => this.add.image(195, 690, `bramble-painted-${frame}`)
+      .setOrigin(brambleArtOrigin.x, brambleArtOrigin.y).setDisplaySize(brambleArtSize.width, brambleArtSize.height).setDepth(2);
+    this.bramblePaint = { ready: painted('ready'), toss: painted('toss').setAlpha(0), recover: painted('recover').setAlpha(0) };
+    this.bramble = this.bramblePaint.ready;
+    this.bramblePawMask = this.add.graphics().setVisible(false);
+    this.bramblePawFront = painted('ready').setDepth(6).setMask(this.bramblePawMask.createGeometryMask());
     this.animateBramble(0);
     if (this.engine?.activity?.kind === 'boss') {
       this.monty = this.add.image(73, 555, 'magpie').setDisplaySize(110, 110);
@@ -450,10 +449,31 @@ class PlayScene extends Phaser.Scene {
       container.add(rim);
       container.add(this.add.triangle(radius - 1, 3, 0, 0, 5, 2, 1, 6, palette[bubble.alternate].edge));
     }
+    if (bubble.kind === 'bud') {
+      // A fixed little calyx, distinct from the chameleon's cycling rim.
+      container.add(this.add.ellipse(-radius * .33, radius * .63, radius * .75, radius * .35, 0x6e9c70, .95).setAngle(28).setStrokeStyle(.8, 0xfff4dc));
+      container.add(this.add.ellipse(radius * .33, radius * .63, radius * .75, radius * .35, 0x6e9c70, .95).setAngle(-28).setStrokeStyle(.8, 0xfff4dc));
+    } else if (bubble.kind === 'echo') {
+      for (let i = 0; i < 5; i++) {
+        const angle = i * Math.PI * 2 / 5 - Math.PI / 2;
+        container.add(this.add.ellipse(Math.cos(angle) * radius * .72, Math.sin(angle) * radius * .72, radius * .26, radius * .42, 0xfff8df, .87).setRotation(angle + Math.PI / 2).setStrokeStyle(.6, style.edge, .6));
+      }
+    }
     if (bubble.bee) container.add(this.add.image(0, 1, 'bee').setDisplaySize(radius * 1.4, radius * 1.4));
     else container.add(this.add.text(0, .7, style.glyph, {
       fontFamily: 'Georgia, serif', fontSize: `${Math.round(radius * .96)}px`, fontStyle: 'bold', color: style.ink, stroke: '#fff8de', strokeThickness: .8
     }).setOrigin(.5));
+    if (bubble.kind === 'bud' && bubble.nextColor) {
+      const next = palette[bubble.nextColor];
+      const petal = { x: radius * .5, y: -radius * .5, radius: radius * .35 };
+      container.add(this.add.circle(petal.x, petal.y, petal.radius, next.fill).setStrokeStyle(1.6, 0xfff8df));
+      container.add(this.add.text(petal.x, petal.y, next.glyph, { fontFamily: 'Georgia, serif', fontSize: `${Math.max(7, Math.round(radius * .45))}px`, fontStyle: 'bold', color: next.ink }).setOrigin(.5));
+    } else if (bubble.kind === 'echo') {
+      const ripple = this.add.graphics();
+      ripple.lineStyle(1.2, 0xfff8df, .95).beginPath().arc(0, 0, radius - 2, .2, 1.15).strokePath();
+      ripple.lineStyle(.9, style.edge, .85).beginPath().arc(0, 0, radius - 5, .2, 1.15).strokePath();
+      container.add(ripple);
+    }
     if (bubble.kind === 'dew') {
       container.add(this.add.circle(0, 0, radius - .5, 0xe3faff, .23).setStrokeStyle(2.2, 0xf0ffff, .95));
       const shell = this.add.graphics();
@@ -518,7 +538,7 @@ class PlayScene extends Phaser.Scene {
         const origin = move?.from ?? cell;
         const previous = before?.find((c) => c.row === origin.row && c.col === origin.col);
         if (move) { const start = cellPosition(move.from); orb.setPosition(start.x, start.y); this.tweens.add({ targets: orb, x: point.x, y: point.y, duration: 260, ease: 'Sine.InOut' }); }
-        if (previous && previous.bubble.color !== cell.bubble.color) {
+        if (previous && (previous.bubble.color !== cell.bubble.color || previous.bubble.kind !== cell.bubble.kind)) {
           const old = this.makeBubble(0, 0, previous.bubble); orb.add(old);
           this.tweens.add({ targets: old, alpha: 0, duration: 320, onComplete: () => old.destroy() });
         }
@@ -566,11 +586,11 @@ class PlayScene extends Phaser.Scene {
     this.nextBubble?.destroy();
     this.wildLabel?.destroy();
     if (!this.engine) return;
-    this.shooterBubble = this.makeShotBubble(195, 690, 22);
-    this.nextBubble = this.makeBubble(nextBubblePoint.x, nextBubblePoint.y, normalBubble(this.engine.nextColor), 18);
+    this.shooterBubble = this.makeShotBubble(195, 690).setDepth(5);
+    this.nextBubble = this.makeBubble(nextBubblePoint.x, nextBubblePoint.y, normalBubble(this.engine.nextColor), 18).setDepth(5);
     const label = this.engine.bloomArmed ? 'BLOOM SHOT' : this.engine.wildColor ? 'WILD SHOT' : this.engine.armedBooster ? boosterById[this.engine.armedBooster.id].name.toUpperCase() : '';
     if (label) {
-      this.wildLabel = this.add.text(195, 656, label, { fontFamily: 'Trebuchet MS', fontSize: '10px', fontStyle: 'bold', color: '#fff4b3', backgroundColor: '#3c705c' }).setPadding(5, 2).setOrigin(.5);
+      this.wildLabel = this.add.text(76, 739, label, { fontFamily: 'Trebuchet MS', fontSize: '10px', fontStyle: 'bold', color: '#fff4b3', backgroundColor: '#3c705c' }).setPadding(5, 2).setOrigin(.5).setDepth(5);
     }
   }
   private makeShotBubble(x: number, y: number, radius = BUBBLE_RADIUS): Phaser.GameObjects.Container {
@@ -642,7 +662,28 @@ class PlayScene extends Phaser.Scene {
       this.aimGraphics.fillStyle(0x577d61, Math.max(.24, .78 - i * .003));
       this.aimGraphics.fillCircle(point.x, point.y, i < 45 ? 3.3 : 2.5);
     }
-    if (this.engine.bloomArmed) {
+    if (this.engine.rulesVersion >= 6) {
+      const preview = previewShotOutcome(this.engine, this.aimAngle)?.settled;
+      for (const cell of preview?.popped ?? []) {
+        const point = cellPosition(cell);
+        this.aimGraphics.lineStyle(2, 0xfff7d3, .95).strokeCircle(point.x, point.y, 19);
+      }
+      for (const cell of preview?.cracked ?? []) {
+        const point = cellPosition(cell);
+        this.aimGraphics.lineStyle(2, 0xcff5ff, .95).strokeCircle(point.x, point.y, 20);
+      }
+      for (const cell of preview?.transformed ?? []) {
+        const point = cellPosition(cell);
+        const bud = this.engine.board.get(cell)?.kind === 'bud';
+        this.aimGraphics.lineStyle(2.5, bud ? 0xd796a7 : 0xa996d0, .98).strokeCircle(point.x, point.y, 22);
+        this.aimGraphics.lineStyle(1, 0xfff8df, .9).strokeCircle(point.x, point.y, 24);
+      }
+      if (trace.placement && !this.engine.armedBooster && !this.engine.bloomArmed) {
+        const point = cellPosition(trace.placement);
+        this.aimGraphics.fillStyle(palette[this.engine.shotColor()].fill, .24).fillCircle(point.x, point.y, 16);
+        this.aimGraphics.lineStyle(2, palette[this.engine.shotColor()].edge, .75).strokeCircle(point.x, point.y, 16);
+      }
+    } else if (this.engine.bloomArmed) {
       if (trace.impact) for (const cell of this.engine.board.bloomGroup(trace.impact)) {
         const p = cellPosition(cell); this.aimGraphics.lineStyle(2.5, 0xffdfed, .95).strokeCircle(p.x, p.y, 20);
       }
@@ -690,7 +731,7 @@ class PlayScene extends Phaser.Scene {
     if (!this.engine.canFire(this.aimAngle)) { notice(this.engine.bloomArmed ? 'Aim Bloom at a colored bubble. Honeycomb blocks it.' : this.engine.armedBooster?.id === 'rainbow' ? 'Aim at a colored bubble. Honeycomb blocks Rainbow.' : 'Aim Bonk at a tile first.'); return; }
     const trace = this.engine.preview(this.aimAngle);
     this.brambleThrowMs = 0;
-    this.flying = { trace, index: 0, angle: this.aimAngle, sprite: this.makeShotBubble(195, 690) };
+    this.flying = { trace, index: 0, angle: this.aimAngle, sprite: this.makeShotBubble(195, 690).setDepth(5) };
     this.shooterBubble?.setVisible(false);
     this.aimGraphics.clear();
     playSound('shoot');
@@ -710,50 +751,43 @@ class PlayScene extends Phaser.Scene {
     }
     if (shot.index >= shot.trace.path.length - 1) this.land();
   }
+  private destroyPaintedBramble(): void {
+    for (const image of Object.values(this.bramblePaint ?? {})) image.destroy();
+    this.bramblePawFront?.destroy();
+    this.bramblePawMask?.destroy();
+    this.bramblePaint = undefined;
+    this.bramblePawFront = undefined;
+    this.bramblePawMask = undefined;
+    this.bramble = undefined;
+  }
   private animateBramble(delta: number): void {
-    if (!this.engine || !this.bramble?.active || !this.blink?.active || !this.brambleArms?.active) return;
+    if (!this.engine || !this.bramblePaint || !this.bramblePawFront?.active || !this.bramblePawMask?.active) return;
     const menuOpen = !overlay.classList.contains('hidden');
     const allowed = brambleMotionAllowed({ aiming: this.aiming, menuOpen, pageHidden: document.hidden, reducedMotion: reducedMotion.matches });
     const step = Math.min(delta, 50);
     if (allowed) this.brambleClock += step;
-    if (this.brambleThrowMs !== undefined && !menuOpen) {
+    if (this.brambleThrowMs !== undefined && !menuOpen && !document.hidden) {
       this.brambleThrowMs += step;
       if (this.brambleThrowMs >= 360 && !this.shooterBubble?.visible) this.brambleThrowMs = 360;
       else if (this.brambleThrowMs >= 520) this.brambleThrowMs = undefined;
     }
     this.brambleMotion = reducedMotion.matches ? 0 : Phaser.Math.Clamp(this.brambleMotion + (allowed ? step / 220 : -step / 140), 0, 1);
     const idle = brambleIdlePose(this.brambleClock, this.brambleMotion);
-    const toss = brambleTossPose(this.aimAngle, this.brambleThrowMs, reducedMotion.matches || menuOpen, this.shooterBubble?.visible ?? true);
-    const angle = idle.angle + toss.lean;
-    const center = { x: brambleBodyPoint.x + toss.shiftX, y: brambleBodyPoint.y - idle.rise - toss.lift };
-    const width = this.brambleSize.width * idle.scaleX * (1 + (1 - toss.scaleY) * .5);
-    const height = this.brambleSize.height * idle.scaleY * toss.scaleY;
-    for (const image of [this.bramble, this.blink]) image.setPosition(center.x, center.y).setAngle(angle).setDisplaySize(width, height);
-    this.blink.setVisible(allowed && idle.blink);
-    this.bramble.setVisible(!this.blink.visible);
-    const arms = this.brambleArms;
-    arms.clear().setPosition(0, 0).setAngle(0);
-    const shape = (outline: typeof bramblePawOutline | typeof brambleSleeveOutline, from: { x: number; y: number }, pawAngle: number, color: number, edge: number, lineWidth: number) => {
-      const radians = pawAngle * Math.PI / 180;
-      const point = (x: number, y: number) => ({ x: from.x + bramblePawScale * (x * Math.cos(radians) - y * Math.sin(radians)), y: from.y + bramblePawScale * (x * Math.sin(radians) + y * Math.cos(radians)) });
-      const start = point(outline.start[0], outline.start[1]);
-      const path = new Phaser.Curves.Path(start.x, start.y);
-      for (const curve of outline.curves) {
-        const end = point(curve[0], curve[1]), first = point(curve[2], curve[3]), second = point(curve[4], curve[5]);
-        path.cubicBezierTo(end.x, end.y, first.x, first.y, second.x, second.y);
-      }
-      const points = path.getPoints(16);
-      arms.fillStyle(color).fillPoints(points, true);
-      arms.lineStyle(lineWidth, edge).strokePoints(points, true);
-    };
-    // Two matching, rounded forepaws cradle the orb. Both stay the same short length.
-    for (const side of [0, 1] as const) {
-      const from = brambleShoulder(center, width, height, angle, side);
-      const pawAngle = angle + (side === 0 ? -180 - toss.pawAngle : toss.pawAngle);
-      shape(bramblePawOutline, from, pawAngle, 0x485647, 0x293c31, 1.6);
-      shape(brambleSleeveOutline, from, pawAngle, 0xe3a94f, 0xad7738, 1.2);
+    const pose = brambleArtPose(this.brambleThrowMs, reducedMotion.matches || menuOpen, this.shooterBubble?.visible ?? true, this.aiming);
+    const angle = idle.angle * .5 + pose.lean;
+    const cup = { x: 195, y: 690 - idle.rise * .5 - pose.rise };
+    const width = brambleArtSize.width * (1 + (idle.scaleX - 1) * .4) * pose.scaleX;
+    const height = brambleArtSize.height * (1 + (idle.scaleY - 1) * .4) * pose.scaleY;
+    for (const [frame, image] of Object.entries(this.bramblePaint)) {
+      image.setPosition(cup.x, cup.y).setAngle(angle).setDisplaySize(width, height).setAlpha(pose.weights[frame as BrambleArtFrame]);
     }
-
+    this.bramblePawFront.setPosition(cup.x, cup.y).setAngle(angle).setDisplaySize(width, height)
+      .setAlpha(this.shooterBubble?.visible ? pose.weights.ready : 0);
+    this.bramblePawMask.clear().fillStyle(0xffffff);
+    for (const matte of bramblePawMattes) {
+      const points = matte.map(([x, y]) => brambleArtPoint({ x, y }, cup, width, height, angle));
+      this.bramblePawMask.fillPoints(points, true);
+    }
   }
 
   private land(): void {
@@ -795,8 +829,8 @@ class PlayScene extends Phaser.Scene {
     if ((result.settled?.beesFreed ?? 0) + (result.turn?.beesFreed ?? 0)) playSound('rescue');
     if ((result.settled?.bonusShots ?? 0) + (result.turn?.bonusShots ?? 0)) playSound('bonus');
     if (result.turn?.moved) playSound('wind');
-    const animationTime = Math.max(this.animateCleared(result), this.animateFlight(result));
-    this.showShotFeedback(result);
+    const animationTime = Math.max(this.animateCleared(result, before), this.animateFlight(result));
+    this.showShotFeedback(result, before);
     if (result.bossBeat && this.monty && !reducedMotion.matches) {
       this.tweens.add({ targets: this.monty, x: result.bossBeat === 'stalled' ? 57 : 83, scale: result.bossBeat === 'clasp' ? 1.12 : 1.06, duration: 130, yoyo: true, ease: 'Back.Out' });
     }
@@ -822,12 +856,12 @@ class PlayScene extends Phaser.Scene {
       }
     });
   }
-  private showShotFeedback(result: FireResult): void {
+  private showShotFeedback(result: FireResult, before: OccupiedCell[]): void {
     const freed = (result.settled?.beesFreed ?? 0) + (result.turn?.beesFreed ?? 0);
     const bonus = (result.settled?.bonusShots ?? 0) + (result.turn?.bonusShots ?? 0);
     const cracked = result.settled?.cracked.length ?? 0;
     const dropped = (result.settled?.dropped.length ?? 0) + (result.turn?.dropped.length ?? 0);
-    const labels: string[] = [];
+    const labels: string[] = transformationFeedback(before, result);
     if (result.bloom) labels.push('A little room to bloom! ✿');
     else if (this.engine?.bloomUnlocked && this.engine.bloomCharge === this.engine.bloomGoal) labels.push('Bloom is ready beside the launcher ✿');
     if (result.flight?.arrived) labels.push('Mabel found her way home!');
@@ -877,7 +911,7 @@ class PlayScene extends Phaser.Scene {
       mote.destroy(); shotsCount.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.2)' }, { transform: 'scale(1)' }], { duration: 180 });
     } });
   }
-  private animateCleared(result: FireResult): number {
+  private animateCleared(result: FireResult, before: OccupiedCell[]): number {
     const popped = result.settled?.popped ?? [];
     const dropped = [...(result.settled?.dropped ?? []), ...(result.turn?.dropped ?? [])];
     const cleared = [...popped, ...dropped];
@@ -902,8 +936,15 @@ class PlayScene extends Phaser.Scene {
     for (const cell of result.settled?.cracked ?? []) {
       const p = cellPosition(cell); this.sparkle(p.x, p.y, 0xe6faff, 5, true); this.impactRing(p.x, p.y, 0xb8e0eb);
     }
+    for (const cell of transformedTileKinds(before, result).cells.slice(0, 12)) {
+      const point = cellPosition(cell);
+      const bud = before.find(prior => prior.row === cell.row && prior.col === cell.col)?.bubble.kind === 'bud';
+      const color = bud ? 0xe1a2b3 : 0xbca8df;
+      this.impactRing(point.x, point.y, color);
+      this.sparkle(point.x, point.y, color, 3);
+    }
     const freed = cleared.filter((cell) => cell.bubble.bee).length;
-    if (freed && this.bramble) this.tweens.add({ targets: [this.bramble, this.blink], angle: -7, duration: 160, yoyo: true, repeat: 1 });
+
     cleared.forEach((cell, index) => {
       const point = cellPosition(cell);
       const orb = this.makeBubble(point.x, point.y, { ...cell.bubble, bee: false });
@@ -916,7 +957,7 @@ class PlayScene extends Phaser.Scene {
       else if (index < 6) this.sparkle(point.x, point.y, cell.bubble.color ? palette[cell.bubble.color].fill : 0xd7ad69, 4, cell.bubble.kind === 'honeycomb');
       if (cell.bubble.bee) this.flyBee(point.x, point.y, delay);
     });
-    return freed ? 1100 : cleared.length ? 590 : result.settled?.cracked.length ? 460 : 340;
+    return freed ? 1100 : cleared.length ? 590 : result.settled?.cracked.length || result.settled?.transformed?.length ? 460 : 340;
   }
   private flyBee(x: number, y: number, delay: number): void {
     const bee = this.add.container(x, y);
@@ -975,9 +1016,9 @@ function updateHud(current: PlayScene): void {
   if (engine.level.wind) {
     chips.push(`<button class="mechanic-chip" data-rule="wind" aria-label="Breeze moves in ${2 - engine.turns % 2} shots">Breeze ${2 - engine.turns % 2} ${engine.board.windPosition() === 0 ? '→' : '←'}</button>`);
   }
-  for (const kind of ['pollen', 'honeycomb', 'dew', 'bloom'] as const) {
+  for (const kind of ['pollen', 'honeycomb', 'dew', 'bloom', 'bud', 'echo'] as const) {
     if (engine.board.entries().some(({ bubble }) => bubble.kind === kind)) {
-      chips.push(`<button class="mechanic-chip" data-rule="${kind}" aria-label="${ruleById[kind].name} rules">${ruleById[kind].symbol} ${{ pollen: 'Pollen', honeycomb: 'Honeycomb', dew: 'Dew', bloom: 'Chameleon' }[kind]}</button>`);
+      chips.push(`<button class="mechanic-chip" data-rule="${kind}" aria-label="${ruleById[kind].name} rules">${ruleById[kind].symbol} ${{ pollen: 'Pollen', honeycomb: 'Honeycomb', dew: 'Dew', bloom: 'Chameleon', bud: 'Two-tone', echo: 'Echo' }[kind]}</button>`);
     }
   }
   if (engine.armedBooster || engine.wildColor) {
@@ -1072,9 +1113,7 @@ function showRules(returnTo: () => void, focus?: RuleId): void {
 
 function showInspectedRule(id: RuleId, bubble?: Bubble): void {
   const rule = ruleById[id];
-  const detail = bubble?.kind === 'bloom' && bubble.alternate
-    ? `Right now it is ${bubble.color}; after the next shot it will be ${bubble.alternate}.`
-    : bubble?.bee && id !== 'bee' ? 'There is a bee friend inside this bubble.' : '';
+  const detail = inspectedBubbleDetail(bubble);
   overlay.className = 'overlay result-overlay';
   overlay.innerHTML = `<div class="result-card inspect-card" role="dialog" aria-label="${escapeHtml(rule.name)}"><span class="rule-symbol">${rule.symbol}</span><h2>${escapeHtml(rule.name)}</h2><p>${escapeHtml(rule.short)} ${escapeHtml(rule.detail)}</p>${detail ? `<p class="inspected-detail">${escapeHtml(detail)}</p>` : ''}<button id="inspect-more" class="primary-button">Inspect another <span>➜</span></button><button id="inspect-finish" class="text-button">Done inspecting</button></div>`;
   overlay.querySelector<HTMLButtonElement>('#inspect-more')!.addEventListener('click', () => overlay.classList.add('hidden'));
@@ -1108,7 +1147,7 @@ function showBag(returnTo: () => void): void {
     ? `<article class="booster-card wild-card"><span class="booster-symbol">✦</span><div class="booster-description"><strong>Bramble's wild shot</strong><p>One free chosen-color shot on this retry. It does not use a regular bubble.</p></div><div class="booster-actions"><button id="use-wild">Use</button></div></article>` : '';
   const cancel = playing && (engine?.armedBooster || engine?.wildColor) ? '<button id="bag-cancel" class="secondary-button">Put away this special shot</button>' : '';
   overlay.className = 'overlay sheet-overlay';
-  overlay.innerHTML = `<section class="sheet gifts-sheet" role="dialog" aria-label="Gifts"><div class="sheet-top"><span class="eyebrow">A LITTLE HELP, WITH LOVE</span><button class="sheet-close" id="bag-close" aria-label="Close gifts">×</button></div><h2>Bramble’s Very Serious Emporium</h2><p class="sheet-lead">Everything is free. Our accountant is a bee.</p><div class="sheet-scroll">${engine && !engine.giftsAllowed ? '<p class="pause-saved">Travel Light leaves gifts packed away. Pause and choose Continue as normal to use them on this board without earning a medal.</p>' : ''}${save.convertedHearts ? `<p class="pause-saved">Your ${save.convertedHearts} Honey Hearts became ${Math.ceil(save.convertedHearts / 3)} Rainbow Pops. Your old gifts are still here.</p>` : ''}<div class="emporium-proprietor"><img src="${BASE}bramble.svg" alt="Bramble, proprietor"><p>“Welcome. Please browse irresponsibly.”<small>Returns accepted in the form of imaginary hugs.</small></p></div>${cancel}${cards}${wild}<h3>A little change of scenery</h3><p class="rule-footnote">Permanent garden colors, earned by clearing meadows. Pick any you have unlocked; change your mind any time.</p>${styleChoices(save)}<div class="refill-card"><strong>There’s always a little more</strong><p>Refill every unlocked gift to at least three. Come back any time.</p><button id="refill-gifts" class="secondary-button">Refill my gifts · free</button></div><p class="rule-footnote">First clears give one of each unlocked gift. Each gift uses a regular shot and is spent only when fired. Cancel before firing to keep it.</p></div></section>`;
+  overlay.innerHTML = `<section class="sheet gifts-sheet" role="dialog" aria-label="Gifts"><div class="sheet-top"><span class="eyebrow">A LITTLE HELP, WITH LOVE</span><button class="sheet-close" id="bag-close" aria-label="Close gifts">×</button></div><h2>Bramble’s Very Serious Emporium</h2><p class="sheet-lead">Everything is free. Our accountant is a bee.</p><div class="sheet-scroll">${engine && !engine.giftsAllowed ? '<p class="pause-saved">Travel Light leaves gifts packed away. Pause and choose Continue as normal to use them on this board without earning a medal.</p>' : ''}${save.convertedHearts ? `<p class="pause-saved">Your ${save.convertedHearts} Honey Hearts became ${Math.ceil(save.convertedHearts / 3)} Rainbow Pops. Your old gifts are still here.</p>` : ''}<div class="emporium-proprietor"><img src="${BASE}${brambleArt.ready}" alt="Bramble, proprietor"><p>“Welcome. Please browse irresponsibly.”<small>Returns accepted in the form of imaginary hugs.</small></p></div>${cancel}${cards}${wild}<h3>A little change of scenery</h3><p class="rule-footnote">Permanent garden colors, earned by clearing meadows. Pick any you have unlocked; change your mind any time.</p>${styleChoices(save)}<div class="refill-card"><strong>There’s always a little more</strong><p>Refill every unlocked gift to at least three. Come back any time.</p><button id="refill-gifts" class="secondary-button">Refill my gifts · free</button></div><p class="rule-footnote">First clears give one of each unlocked gift. Each gift uses a regular shot and is spent only when fired. Cancel before firing to keep it.</p></div></section>`;
   overlay.querySelector<HTMLButtonElement>('#bag-close')!.addEventListener('click', () => { save.convertedHearts = 0; storeSave(save); returnTo(); });
   overlay.querySelector('#bag-cancel')?.addEventListener('click', () => { scene.cancelSpecial(); backToLevel(); });
   bindGardenStyles(() => showBag(returnTo));
@@ -1140,14 +1179,14 @@ function showTopUp(): void {
 
 function showAudio(returnTo: () => void): void {
   overlay.className = 'overlay sheet-overlay';
-  overlay.innerHTML = `<section class="sheet audio-sheet" role="dialog" aria-label="Sound and aiming options"><div class="sheet-top"><span class="eyebrow">A LITTLE CUSTOMISING</span><button id="audio-close" class="sheet-close" aria-label="Close options">×</button></div><h2>Sound & aiming</h2><p class="sheet-lead">Choose how much of the shot Bramble previews.</p><fieldset class="aim-guide-setting"><legend>Aim guide</legend><div class="aim-guide-choices"><button type="button" class="aim-guide-choice" data-aim-guide="short" aria-pressed="${aimGuideMode === 'short'}">Short aim</button><button type="button" class="aim-guide-choice" data-aim-guide="full" aria-pressed="${aimGuideMode === 'full'}">Full assist</button></div><p id="aim-guide-status" aria-live="polite">${aimGuideMode === 'short' ? 'A short direction stem, without the landing preview.' : 'Shows the full dotted path, landing point and match preview.'}</p></fieldset>${(['musicVolume', 'effectsVolume'] as const).map((key) => `<label class="volume-control">${key === 'musicVolume' ? 'Music' : 'Sound effects'} <output id="${key}-value">${Math.round(save[key] * 100)}%</output><input aria-label="${key === 'musicVolume' ? 'Music volume' : 'Sound effects volume'}" type="range" min="0" max="100" value="${Math.round(save[key] * 100)}" data-volume="${key}"></label>`).join('')}<button id="audio-mute" class="secondary-button">${save.muted ? 'Turn sound on' : 'Mute everything'}</button><p class="audio-credit">Music: <a href="https://opengameart.org/content/sunset-walk-ambient-quiet-sweet-loop" target="_blank" rel="noopener">Sunset Walk · KiluaBoy</a><br>Shared under CC0. Thank you for the lovely music.</p></section>`;
+  overlay.innerHTML = `<section class="sheet audio-sheet" role="dialog" aria-label="Sound and aiming options"><div class="sheet-top"><span class="eyebrow">A LITTLE CUSTOMISING</span><button id="audio-close" class="sheet-close" aria-label="Close options">×</button></div><h2>Sound & aiming</h2><p class="sheet-lead">Choose how much of the shot Bramble previews.</p><fieldset class="aim-guide-setting"><legend>Aim guide</legend><div class="aim-guide-choices"><button type="button" class="aim-guide-choice" data-aim-guide="short" aria-pressed="${aimGuideMode === 'short'}">Short aim</button><button type="button" class="aim-guide-choice" data-aim-guide="full" aria-pressed="${aimGuideMode === 'full'}">Full assist</button></div><p id="aim-guide-status" aria-live="polite">${aimGuideMode === 'short' ? 'A short direction stem, without the landing preview.' : 'Shows the full path and landing point. Cream rings clear; blue rings crack dew; rose and lilac rings reveal a bud or recolor Echo.'}</p></fieldset>${(['musicVolume', 'effectsVolume'] as const).map((key) => `<label class="volume-control">${key === 'musicVolume' ? 'Music' : 'Sound effects'} <output id="${key}-value">${Math.round(save[key] * 100)}%</output><input aria-label="${key === 'musicVolume' ? 'Music volume' : 'Sound effects volume'}" type="range" min="0" max="100" value="${Math.round(save[key] * 100)}" data-volume="${key}"></label>`).join('')}<button id="audio-mute" class="secondary-button">${save.muted ? 'Turn sound on' : 'Mute everything'}</button><p class="audio-credit">Music: <a href="https://opengameart.org/content/sunset-walk-ambient-quiet-sweet-loop" target="_blank" rel="noopener">Sunset Walk · KiluaBoy</a><br>Shared under CC0. Thank you for the lovely music.</p></section>`;
   overlay.querySelector('#audio-close')!.addEventListener('click', returnTo);
   overlay.querySelectorAll<HTMLButtonElement>('[data-aim-guide]').forEach((button) => button.addEventListener('click', () => {
     const mode = button.dataset.aimGuide as AimGuideMode;
     aimGuideMode = mode;
     const saved = storeAimGuideMode(mode);
     overlay.querySelectorAll<HTMLButtonElement>('[data-aim-guide]').forEach((choice) => choice.setAttribute('aria-pressed', String(choice.dataset.aimGuide === mode)));
-    overlay.querySelector<HTMLElement>('#aim-guide-status')!.textContent = `${mode === 'short' ? 'A short direction stem, without the landing preview.' : 'The full path, landing point and match preview.'}${saved ? ' Saved for this browser.' : ' This browser could not save the choice.'}`;
+    overlay.querySelector<HTMLElement>('#aim-guide-status')!.textContent = `${mode === 'short' ? 'A short direction stem, without the landing preview.' : 'The full path and landing point. Cream rings clear; blue crack dew; rose/lilac reveal buds or recolor Echo.'}${saved ? ' Saved for this browser.' : ' This browser could not save the choice.'}`;
     scene.refreshAimGuide();
   }));
   overlay.querySelector('#audio-mute')!.addEventListener('click', () => {
@@ -1171,7 +1210,7 @@ function showMyGarden(returnTo: () => void): void {
   showSaveScreen(save, overlay, {
     close: returnTo,
     garden: () => showGarden(() => showMyGarden(returnTo)),
-    levels: () => showChapterSelect(Math.floor(firstUnfinished() / 10)),
+    levels: () => showChapterSelect(chapterIndexForLevel(firstUnfinished())),
     applied: () => { updateMuteButton(); showHome(); }
   });
 }
@@ -1188,7 +1227,7 @@ function showGarden(returnTo: () => void): void {
   const progress = gardenProgress(save.stars);
   const friendCards = friendsCards(save.stars);
   overlay.className = 'overlay garden-overlay';
-  overlay.innerHTML = `<section class="garden-page" role="dialog" aria-label="Bee Garden"><div class="sheet-top"><span class="eyebrow">A HOME FOR LITTLE FRIENDS</span><button id="garden-close" class="sheet-close" aria-label="Close garden">×</button></div><h2>Your bee garden</h2><p>${progress.flowers ? 'Look what your kindness has grown.' : 'Every rescue begins with a little kindness.'}</p>${gardenArt(save.stars, save.gardenStyle)}<div class="garden-progress"><strong>${progress.flowers} / 30 meadows blooming</strong><span>${progress.decorations} decorations · ${progress.hive} hive improvements</span></div><p class="garden-note">${progress.flowers === 30 ? 'All home together. A whole garden full of love.' : `A flower for each meadow. Your next decoration arrives at ${Math.min(30, (progress.decorations + 1) * 5)} clears.`}</p><h3>Make yourself at home</h3>${styleChoices(save)}${friendCards ? `<h3>Your little friends</h3>${friendCards}` : ''}<h3>Side adventure keepsakes</h3><p>${save.medals.length}/6 challenge medals${save.bossCleared ? ' · Picnic recovered ✦' : ''}${save.rematchCleared ? ' · Monty’s rematch ✦' : ''}</p><h3>Little keepsakes</h3><p>Garden craft: ${save.records.filter(r => r?.unaided).length} · Lovely cascade: ${save.records.filter(r => r?.cascade).length} · Around the bend: ${save.records.filter(r => r?.bank).length}</p><p class="garden-note">Optional memories of clever shots. See Rules for how to earn them. Your flowers and stars are always yours.</p><button id="garden-back" class="primary-button">${scene.engine?.won ? 'Back to celebration' : 'Back to the meadows'} <span>➜</span></button></section>`;
+  overlay.innerHTML = `<section class="garden-page" role="dialog" aria-label="Bee Garden"><div class="sheet-top"><span class="eyebrow">A HOME FOR LITTLE FRIENDS</span><button id="garden-close" class="sheet-close" aria-label="Close garden">×</button></div><h2>Your bee garden</h2><p>${progress.flowers ? 'Look what your kindness has grown.' : 'Every rescue begins with a little kindness.'}</p>${gardenArt(save.stars, save.gardenStyle)}<div class="garden-progress"><strong>${progress.flowers} / ${levels.length} meadows blooming</strong><span>${progress.decorations} decorations · ${progress.hive} hive improvements</span></div><p class="garden-note">${progress.flowers === levels.length ? 'All home together. A whole garden full of love.' : `A flower for each meadow. Your next decoration arrives at ${Math.min(levels.length, (progress.decorations + 1) * 5)} clears.`}</p><h3>Make yourself at home</h3>${styleChoices(save)}${friendCards ? `<h3>Your little friends</h3>${friendCards}` : ''}<h3>Side adventure keepsakes</h3><p>${save.medals.length}/6 challenge medals${save.bossCleared ? ' · Picnic recovered ✦' : ''}${save.rematchCleared ? ' · Monty’s rematch ✦' : ''}</p><h3>Little keepsakes</h3><p>Garden craft: ${save.records.filter(r => r?.unaided).length} · Lovely cascade: ${save.records.filter(r => r?.cascade).length} · Around the bend: ${save.records.filter(r => r?.bank).length}</p><p class="garden-note">Optional memories of clever shots. See Rules for how to earn them. Your flowers and stars are always yours.</p><button id="garden-back" class="primary-button">${scene.engine?.won ? 'Back to celebration' : 'Back to the meadows'} <span>➜</span></button></section>`;
   bindGardenStyles(() => showGarden(returnTo));
   overlay.querySelector('#garden-close')!.addEventListener('click', returnTo);
   overlay.querySelector('#garden-back')!.addEventListener('click', returnTo);
@@ -1204,7 +1243,7 @@ function launchActivity(activity: Activity): void {
   if (!activityUnlocked(activity, save.stars)) return;
   const level = activityLevel(activity);
   overlay.classList.add('hidden'); hud.classList.remove('hidden');
-  scene.startLevel(level.id - 1, { engine: new GameEngine(level, 5, activity), actions: [] });
+  scene.startLevel(level.id - 1, { engine: new GameEngine(level, 6, activity), actions: [] });
 }
 function resumeSideActivity(): void {
   const restored = restoreActiveRun(save.activeSideRun, levels, save.unlocked);
@@ -1244,7 +1283,7 @@ function beginLevel(index: number, fresh = false): void {
   }
 }
 function showGuide(label: string, title: string, message: string, after?: () => void, bagPrompt = false, levelId?: number): void {
-  const lesson = levelId && scene.engine?.rulesVersion === 5 ? lessonFor(levelId) : undefined;
+  const lesson = levelId && scene.engine && scene.engine.rulesVersion >= 5 ? lessonFor(levelId) : undefined;
   overlay.className = 'overlay result-overlay';
   overlay.innerHTML = `<div class="result-card guide-card"><span class="eyebrow">${escapeHtml(label)}</span><h2>${escapeHtml(title)}</h2>${lesson ? `<div class="lesson-stage">${lessonDemo(lesson, reducedMotion.matches)}</div><p class="guide-line">${escapeHtml(lesson.line)}</p>` : `<p>${escapeHtml(message)}</p>`}<button id="guide-close" class="primary-button">${lesson ? 'Let me try' : 'Got it'} <span>➜</span></button>${lesson && !reducedMotion.matches ? '<button id="guide-replay" class="text-button">Replay example</button>' : ''}${lesson ? '<button id="guide-skip" class="text-button">Skip</button>' : ''}${bagPrompt ? '<button id="guide-bag" class="secondary-button">Show me my gifts ✿</button>' : ''}</div>`;
   overlay.querySelector<HTMLButtonElement>('#guide-close')!.addEventListener('click', () => { overlay.classList.add('hidden'); after?.(); });
@@ -1267,11 +1306,11 @@ function showHome(): void {
   const next = pausedIndex ?? firstUnfinished();
   const progress = Math.round(complete / levels.length * 100);
   overlay.innerHTML = `<div class="home-header"><span class="eyebrow">A LITTLE ADVENTURE FOR YOU</span><h1>Bramble’s<br><em>Bubble Rescue</em></h1><p>Pop bubbles. Free little friends. Make someone smile.</p></div>
-    <img class="hero-art" src="${BASE}bramble.svg" alt="Bramble the friendly honey badger" />
-    <div class="home-panel"><div class="dedication">${escapeHtml(gameContent.opening)}</div><button id="primary-play" class="primary-button">${pausedIndex !== undefined ? `Resume · Level ${next + 1}` : complete === levels.length ? 'Play again' : `Continue · Level ${next + 1}`} <span>➜</span></button>${pausedIndex !== undefined ? '<div class="paused-note">Your in-progress meadow is right where you left it.</div>' : ''}<button id="choose-level" class="secondary-button">Choose a level</button><button id="home-adventures" class="secondary-button adventure-link">Side adventures</button><div class="home-quick-actions"><button id="home-garden">My Garden</button><button id="home-bag">Gifts</button><button id="home-audio">Options</button><button id="home-rules">Rules</button></div><div class="journey-progress">${complete} of 30 meadows complete</div><div class="progress-track" role="progressbar" aria-valuenow="${complete}" aria-valuemin="0" aria-valuemax="30" aria-label="Meadows complete"><span style="width:${progress}%"></span></div></div>
+    <img class="hero-art" src="${BASE}${brambleArt.ready}" alt="Bramble the friendly honey badger" />
+    <div class="home-panel"><div class="dedication">${escapeHtml(gameContent.opening)}</div><button id="primary-play" class="primary-button">${pausedIndex !== undefined ? `Resume · Level ${next + 1}` : complete === levels.length ? 'Play again' : `Continue · Level ${next + 1}`} <span>➜</span></button>${pausedIndex !== undefined ? '<div class="paused-note">Your in-progress meadow is right where you left it.</div>' : ''}<button id="choose-level" class="secondary-button">Choose a level</button><button id="home-adventures" class="secondary-button adventure-link">Side adventures</button><div class="home-quick-actions"><button id="home-garden">My Garden</button><button id="home-bag">Gifts</button><button id="home-audio">Options</button><button id="home-rules">Rules</button></div><div class="journey-progress">${complete} of ${levels.length} meadows complete</div><div class="progress-track" role="progressbar" aria-valuenow="${complete}" aria-valuemin="0" aria-valuemax="${levels.length}" aria-label="Meadows complete"><span style="width:${progress}%"></span></div></div>
     <div class="home-footer">A cosy little game · No timers, just bubbles</div>`;
   overlay.querySelector<HTMLButtonElement>('#primary-play')!.addEventListener('click', () => beginLevel(next));
-  overlay.querySelector<HTMLButtonElement>('#choose-level')!.addEventListener('click', () => showChapterSelect(Math.floor(next / 10)));
+  overlay.querySelector<HTMLButtonElement>('#choose-level')!.addEventListener('click', () => showChapterSelect(chapterIndexForLevel(next)));
   overlay.querySelector('#home-adventures')!.addEventListener('click', showSideActivities);
   overlay.querySelector('#home-garden')!.addEventListener('click', () => showMyGarden(showHome));
   overlay.querySelector('#home-audio')!.addEventListener('click', () => showAudio(showHome));
@@ -1279,12 +1318,17 @@ function showHome(): void {
   overlay.querySelector<HTMLButtonElement>('#home-bag')!.addEventListener('click', () => showBag(showHome));
 }
 function showChapterSelect(chapterIndex: number): void {
+  const choices = chapterChoices(chapterIndex, save.unlocked, save.stars);
+  chapterIndex = choices.find(item => item.selected)!.index;
   lastChapter = chapterIndex;
   scene.returnHome();
   hud.classList.add('hidden');
   overlay.className = 'overlay chapter-overlay';
-  const chapter = chapters[chapterIndex];
-  const tabs = chapters.map((item, index) => `<button class="chapter-tab ${index === chapterIndex ? 'active' : ''}" data-chapter="${index}" aria-pressed="${index === chapterIndex}">${item.name}</button>`).join('');
+  const chapter = choices[chapterIndex];
+  const tabs = choices.map(item => {
+    const status = item.unlocked ? `${item.complete}/${item.last - item.first + 1} complete` : 'Locked';
+    return `<button type="button" class="chapter-tab ${item.selected ? 'active' : ''} ${item.unlocked ? '' : 'locked'}" data-chapter="${item.index}" aria-pressed="${item.selected}" aria-label="Chapter ${item.index + 1}: ${escapeHtml(item.name)}, levels ${item.first} to ${item.last}, ${status}"><strong>${escapeHtml(item.name)}</strong><small>${item.first}–${item.last} · ${status}</small></button>`;
+  }).join('');
   const tiles = levels.slice(chapter.first - 1, chapter.last).map((level) => {
     const index = level.id - 1;
     const unlocked = index < save.unlocked;
@@ -1292,9 +1336,28 @@ function showChapterSelect(chapterIndex: number): void {
     const paused = save.activeRun?.levelId === level.id;
     return `<button class="level-tile ${unlocked ? '' : 'locked'} ${paused ? 'paused' : ''}" data-level="${index}" ${unlocked ? '' : 'disabled'} aria-label="Level ${level.id}: ${escapeHtml(level.name)}${unlocked ? paused ? ', paused' : '' : ', locked'}"><span>${level.id}</span><small>${unlocked ? paused ? 'Paused' : stars ? '★'.repeat(stars) : 'Ready' : 'Locked'}</small></button>`;
   }).join('');
-  overlay.innerHTML = `<div class="chapter-heading"><button id="chapter-back" class="icon-button" aria-label="Back to home">‹</button><span class="eyebrow">BRAMBLE’S JOURNEY</span><h2>${escapeHtml(chapter.name)}</h2><p>${escapeHtml(chapter.subtitle)}</p></div><div class="chapter-panel"><div class="chapter-tabs">${tabs}</div><div class="chapter-grid">${tiles}</div><p>${save.activeRun?.actions.length ? `Level ${save.activeRun.levelId} is paused. Starting another replaces its board.` : 'Finish a level to open the next meadow.'}</p><div class="chapter-quick-actions"><button id="chapter-rules">Rules</button><button id="chapter-bag">Gifts ✿</button></div></div>`;
+  overlay.innerHTML = `<div class="chapter-heading"><button id="chapter-back" class="icon-button" aria-label="Back to home">‹</button><span class="eyebrow">BRAMBLE’S JOURNEY</span><h2>${escapeHtml(chapter.name)}</h2><p>${escapeHtml(chapter.subtitle)}</p></div><div class="chapter-panel"><nav class="chapter-tabs" aria-label="Choose a chapter">${tabs}</nav><div class="chapter-range">Chapter ${chapterIndex + 1} of ${chapters.length} · Levels ${chapter.first}–${chapter.last}</div><div class="chapter-grid">${tiles}</div><p>${save.activeRun?.actions.length ? `Level ${save.activeRun.levelId} is paused. Starting another replaces its board.` : chapter.unlocked ? 'Finish a level to open the next meadow.' : `Finish Level ${chapter.first - 1} to open this chapter. You can look ahead at its meadows.`}</p><div class="chapter-quick-actions"><button id="chapter-rules">Rules</button><button id="chapter-bag">Gifts ✿</button></div></div>`;
   overlay.querySelector<HTMLButtonElement>('#chapter-back')!.addEventListener('click', showHome);
-  overlay.querySelectorAll<HTMLButtonElement>('[data-chapter]').forEach((button) => button.addEventListener('click', () => showChapterSelect(Number(button.dataset.chapter))));
+  const tabStrip = overlay.querySelector<HTMLElement>('.chapter-tabs')!;
+  const selectedTab = tabStrip.querySelector<HTMLElement>('.active')!;
+  tabStrip.scrollLeft = Math.max(0, selectedTab.offsetLeft - tabStrip.clientWidth / 2 + selectedTab.offsetWidth / 2);
+  overlay.querySelectorAll<HTMLButtonElement>('[data-chapter]').forEach(button => {
+    button.addEventListener('click', () => {
+      const target = Number(button.dataset.chapter);
+      showChapterSelect(target);
+      overlay.querySelector<HTMLButtonElement>(`[data-chapter="${target}"]`)!.focus({ preventScroll: true });
+    });
+    button.addEventListener('keydown', event => {
+      const current = Number(button.dataset.chapter);
+      const target = event.key === 'ArrowRight' ? Math.min(chapters.length - 1, current + 1)
+        : event.key === 'ArrowLeft' ? Math.max(0, current - 1)
+        : event.key === 'Home' ? 0 : event.key === 'End' ? chapters.length - 1 : undefined;
+      if (target === undefined) return;
+      event.preventDefault();
+      showChapterSelect(target);
+      overlay.querySelector<HTMLButtonElement>(`[data-chapter="${target}"]`)!.focus({ preventScroll: true });
+    });
+  });
   overlay.querySelectorAll<HTMLButtonElement>('[data-level]').forEach((button) => button.addEventListener('click', () => {
     const index = Number(button.dataset.level);
     if (save.activeRun?.actions.length && save.activeRun.levelId !== index + 1) showSwitchLevelConfirm(index);
@@ -1312,16 +1375,16 @@ function showResult(won: boolean, index: number, stars: number, firstClear = fal
   hud.classList.add('hidden');
   overlay.className = 'overlay result-overlay';
   const finale = won && index === levels.length - 1;
-  const chapterEnd = won && (index === 9 || index === 19);
+  const chapterEnd = won && isChapterEnd(index);
   const title = finale ? 'All home together!' : chapterEnd ? 'A new path opens!' : won ? 'Lovely work!' : 'One more try?';
   const losses = save.failures[index] || 0;
   const teasing = ['Bramble says John would have missed that shot too.', 'John insists this level is perfectly fair. Bramble is unconvinced.', 'John owes you a victory dance when you clear this one.'];
-  const message = finale ? gameContent.ending : chapterEnd ? `You finished ${chapters[Math.floor(index / 10)].name}. Bramble has another place to explore!` : won ? `You freed every bee in ${levels[index].name}.` : losses > 1 ? teasing[(losses - 2) % teasing.length] : 'Bramble believes in you. Take another shot at it!';
+  const message = finale ? gameContent.ending : chapterEnd ? `You finished ${chapters[chapterIndexForLevel(index)].name}. Bramble has another place to explore!` : won ? `You freed every bee in ${levels[index].name}.` : losses > 1 ? teasing[(losses - 2) % teasing.length] : 'Bramble believes in you. Take another shot at it!';
   const assist = !won && losses >= 2 ? '<p class="assist-note">A hint and one free wild shot are ready on your next try.</p>' : '';
   const reward = won && firstClear ? '<p class="reward-note">✿ A new garden flower and a gift of each unlocked power-up!</p>' : '';
-  overlay.innerHTML = `<div class="result-card ${won ? 'win-card' : 'retry-card'}"><span class="eyebrow">${won ? 'BEE FRIENDS RESCUED' : 'THE ADVENTURE CONTINUES'}</span><div class="result-art"><img src="${BASE}${won ? 'bee.svg' : 'bramble.svg'}" alt="" /></div><h2>${escapeHtml(title)}</h2><div class="stars" aria-label="${stars} stars">${won ? Array.from({ length: 3 }, (_, i) => `<span class="result-star ${i < stars ? 'earned' : ''}" style="--star-delay:${i * 100}ms">${i < stars ? '★' : '☆'}</span>`).join('') : '✿ ✿ ✿'}</div><p>${escapeHtml(message)}</p>${assist}${reward}${won ? `<div class="mastery-keepsakes">${masteryLabels(save.records[index]).map(label => `<span>${label}</span>`).join('')}</div>${firstClear ? friends.filter(f => f.clears === save.stars.filter(Boolean).length).map(f => `<p class="friend-arrival">${f.hat} <strong>${escapeHtml(f.name)} has moved into your garden!</strong><br><small>${escapeHtml(f.title)} · ${escapeHtml(f.description)}</small></p>`).join('') : ''}` : ''}<button id="result-primary" class="primary-button">${won ? finale ? 'Play from the beginning' : 'Next meadow' : 'Try again'} <span>➜</span></button>${won && (index === 19 || index === 29) ? '<button id="result-adventures" class="secondary-button">Meet Monty · side adventures</button>' : ''}<button id="result-bag" class="secondary-button">Gifts ✿</button><div class="result-links"><button id="result-garden" class="text-button">Bee Garden</button><button id="result-rules" class="text-button">Bubble rules</button><button id="result-menu" class="text-button">Choose a level</button></div></div>`;
+  overlay.innerHTML = `<div class="result-card ${won ? 'win-card' : 'retry-card'}"><span class="eyebrow">${won ? 'BEE FRIENDS RESCUED' : 'THE ADVENTURE CONTINUES'}</span><div class="result-art"><img src="${BASE}${won ? 'bee.svg' : brambleArt.recover}" alt="" /></div><h2>${escapeHtml(title)}</h2><div class="stars" aria-label="${stars} stars">${won ? Array.from({ length: 3 }, (_, i) => `<span class="result-star ${i < stars ? 'earned' : ''}" style="--star-delay:${i * 100}ms">${i < stars ? '★' : '☆'}</span>`).join('') : '✿ ✿ ✿'}</div><p>${escapeHtml(message)}</p>${assist}${reward}${won ? `<div class="mastery-keepsakes">${masteryLabels(save.records[index]).map(label => `<span>${label}</span>`).join('')}</div>${firstClear ? friends.filter(f => f.clears === save.stars.filter(Boolean).length).map(f => `<p class="friend-arrival">${f.hat} <strong>${escapeHtml(f.name)} has moved into your garden!</strong><br><small>${escapeHtml(f.title)} · ${escapeHtml(f.description)}</small></p>`).join('') : ''}` : ''}<button id="result-primary" class="primary-button">${won ? finale ? 'Play from the beginning' : 'Next meadow' : 'Try again'} <span>➜</span></button>${won && (index === 19 || index === 29) ? '<button id="result-adventures" class="secondary-button">Meet Monty · side adventures</button>' : ''}<button id="result-bag" class="secondary-button">Gifts ✿</button><div class="result-links"><button id="result-garden" class="text-button">Bee Garden</button><button id="result-rules" class="text-button">Bubble rules</button><button id="result-menu" class="text-button">Choose a level</button></div></div>`;
   overlay.querySelector<HTMLButtonElement>('#result-primary')!.addEventListener('click', () => beginLevel(won ? (index + 1) % levels.length : index));
-  overlay.querySelector<HTMLButtonElement>('#result-menu')!.addEventListener('click', () => showChapterSelect(Math.floor(index / 10)));
+  overlay.querySelector<HTMLButtonElement>('#result-menu')!.addEventListener('click', () => showChapterSelect(chapterIndexForLevel(index)));
   overlay.querySelector('#result-adventures')?.addEventListener('click', showSideActivities);
   overlay.querySelector<HTMLButtonElement>('#result-bag')!.addEventListener('click', () => showBag(() => showResult(won, index, stars, false)));
   overlay.querySelector('#result-garden')!.addEventListener('click', () => showGarden(() => showResult(won, index, stars, false)));

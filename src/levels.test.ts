@@ -12,11 +12,11 @@ describe('gift levels', () => {
     expect(levels[15].wind).toBeDefined();
     expect(levels[15].specials).toEqual([]);
     expect(levels[15].shots).toBeGreaterThan(levels[16].shots);
-    expect(levels.slice(20).every(({ shots, par }) => shots - par <= 2)).toBe(true);
+    expect(levels.slice(20, 30).every(({ shots, par }) => shots - par <= 2)).toBe(true);
   });
 
-  it('all 30 levels load with bee targets and valid specials', () => {
-    expect(levels).toHaveLength(30);
+  it('all 100 levels load with bee targets and valid specials', () => {
+    expect(levels).toHaveLength(100);
     for (const level of levels) {
       let board: BubbleBoard;
       try { board = new BubbleBoard(level.rows, level.specials); }

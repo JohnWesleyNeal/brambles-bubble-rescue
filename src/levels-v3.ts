@@ -1,7 +1,7 @@
 // Frozen published layouts for replaying run versions 1–3. Edit levels.ts for new attempts.
 import type { BubbleColor, Cell, SpecialTile, WindStrip } from './board';
 
-export type Chapter = 'beginner' | 'intermediate' | 'hard';
+export type Chapter = 'beginner' | 'intermediate' | 'hard' | 'rosewood' | 'echo-glen' | 'braided-brook' | 'lantern-wood' | 'high-canopy' | 'starlit-orchard' | 'homecoming';
 export const chapters: { id: Chapter; name: string; subtitle: string; first: number; last: number }[] = [
   { id: 'beginner', name: 'Meadow Days', subtitle: 'Learn the lovely little tricks', first: 1, last: 10 },
   { id: 'intermediate', name: 'Honeycomb Grove', subtitle: 'Find a path through the puzzle', first: 11, last: 20 },

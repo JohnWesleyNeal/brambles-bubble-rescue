@@ -52,7 +52,7 @@ describe('free bubble top-ups and run compatibility', () => {
     expect(engine.awaitingTopUp).toBe(true);
     expect(engine.lost).toBe(false);
     expect(engine.canFire(0)).toBe(false);
-    let restored = restoreActiveRun({ version: 4, levelId: 1, actions }, [level], 1)!;
+    let restored = restoreActiveRun({ version: engine.rulesVersion, levelId: 1, actions }, [level], 1)!;
     expect(restored.engine.awaitingTopUp).toBe(true);
     expect(restored.engine.board.entries()).toEqual(engine.board.entries());
     const queue = [engine.currentColor, engine.nextColor];
@@ -63,7 +63,7 @@ describe('free bubble top-ups and run compatibility', () => {
     for (const angle of [-1.2, 1.2, -1, 1, 0]) { engine.fire(angle); actions.push({ type: 'fire', angle }); }
     expect(engine.awaitingTopUp).toBe(true);
     expect(engine.topUp()).toBe(true); actions.push({ type: 'topup' });
-    restored = restoreActiveRun({ version: 4, levelId: 1, actions }, [level], 1)!;
+    restored = restoreActiveRun({ version: engine.rulesVersion, levelId: 1, actions }, [level], 1)!;
     expect(restored.engine.shots).toBe(5);
     expect(restored.engine.turns).toBe(6);
     expect(restored.engine.board.entries()).toEqual(engine.board.entries());

@@ -18,14 +18,16 @@ export function suggestShot(engine: GameEngine) {
       const drops = (result.settled?.dropped.length ?? 0) + (result.turn?.dropped.length ?? 0);
       const pops = result.settled?.popped.length ?? 0;
       const cracks = result.settled?.cracked.length ?? 0;
+      const changes = result.settled?.transformed?.length ?? 0;
+      const chains = result.settled?.chains ?? 0;
       const bees = trial.freedBees - engine.freedBees;
       const path = trial.flightStep - engine.flightStep;
-      const score = Number(result.won) * 10000 + bees * 100 + path * 60 + drops * 3 + pops * 2 + cracks * 4 - Math.abs(angle) - Number(swap) * .1;
+      const score = Number(result.won) * 10000 + bees * 100 + path * 60 + drops * 3 + pops * 2 + cracks * 4 + changes * 5 + chains * 7 - Math.abs(angle) - Number(swap) * .1;
       if (best && best.score >= score) continue;
       const bank = result.trace.path.some((p, i, a) => i > 1 && (p.x - a[i - 1].x) * (a[i - 1].x - a[i - 2].x) < 0);
       const direction = angle < 0 ? 'to the left' : angle > 0 ? 'to the right' : 'up the middle';
       const aim = bank ? `off the ${angle < 0 ? 'left' : 'right'} wall` : direction;
-      const benefit = bees ? `rescue ${bees} ${bees === 1 ? 'bee' : 'bees'}` : path ? 'open Mabel’s route' : drops ? 'drop a hanging group' : cracks ? 'crack a dew shell' : pops ? 'clear a matching group' : '';
+      const benefit = bees ? `rescue ${bees} ${bees === 1 ? 'bee' : 'bees'}` : path ? 'open Mabel’s route' : chains ? 'start an Echo cascade' : drops ? 'drop a hanging group' : changes ? 'reveal a bud or lend Echo petals a color' : cracks ? 'crack a dew shell' : pops ? 'clear a matching group' : '';
       const equipped = engine.bloomArmed ? 'your Bloom shot' : engine.armedBooster ? 'your equipped gift' : `the ${names[color]} bubble`;
       best = { angle, swap, score, message: benefit
         ? `${swap ? 'Swap, then aim' : 'Aim'} ${equipped} ${aim} to ${benefit}.`

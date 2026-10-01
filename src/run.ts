@@ -4,6 +4,7 @@ import type { BoosterId } from './boosters';
 import { GameEngine } from './engine';
 import { legacyLevels, type LevelDefinition } from './levels';
 import { levels as edition3 } from './levels-v3';
+import { levels as edition5 } from './levels-v5';
 
 export type RunAction =
   | { type: 'relax' }
@@ -15,7 +16,7 @@ export type RunAction =
   | { type: 'bloom' }
   | { type: 'fire'; angle: number };
 
-export interface ActiveRun { version: 1 | 2 | 3 | 4 | 5; levelId: number; actions: RunAction[]; activity?: Activity }
+export interface ActiveRun { version: 1 | 2 | 3 | 4 | 5 | 6; levelId: number; actions: RunAction[]; activity?: Activity }
 export interface RestoredRun { engine: GameEngine; actions: RunAction[] }
 
 const colors = new Set(['R', 'O', 'Y', 'G', 'B', 'P']);
@@ -26,8 +27,8 @@ const boosters = new Set(['rainbow', 'double', 'bonk']);
 export function restoreActiveRun(value: unknown, levels: LevelDefinition[], unlocked: number): RestoredRun | null {
   if (!value || typeof value !== 'object') return null;
   const run = value as Record<string, unknown>;
-  if ((run.version !== 1 && run.version !== 2 && run.version !== 3 && run.version !== 4 && run.version !== 5) || !Number.isInteger(run.levelId) || Number(run.levelId) < 1 || Number(run.levelId) > unlocked || !Array.isArray(run.actions) || run.actions.length > 100000) return null;
-  let level = (run.version < 3 ? legacyLevels : run.version === 3 ? edition3 : levels)[Number(run.levelId) - 1];
+  if ((run.version !== 1 && run.version !== 2 && run.version !== 3 && run.version !== 4 && run.version !== 5 && run.version !== 6) || !Number.isInteger(run.levelId) || Number(run.levelId) < 1 || Number(run.levelId) > unlocked || !Array.isArray(run.actions) || run.actions.length > 100000) return null;
+  let level = (run.version < 3 ? legacyLevels : run.version === 3 ? edition3 : run.version < 6 ? edition5 : levels)[Number(run.levelId) - 1];
   if (run.activity !== undefined) {
     if (Number(run.version) < 4 || !validActivity(run.activity)) return null;
     level = activityLevel(run.activity, Number(run.version));

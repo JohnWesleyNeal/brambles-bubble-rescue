@@ -20,6 +20,8 @@ const scenes: Record<string, string> = {
   dew: `${circle(128, 55, '#89cbe9')}${shell(128,55)}${shot('#89cbe9', 'M128 137 L128 81')}<text x="181" y="52" font-size="20" opacity="0">❄${appear()}</text>`,
   flight: `<path d="M128 129 L128 28" stroke="#fff7df" stroke-width="3" stroke-dasharray="4 7"/>${circle(128, 72, '#f48b87', vanish())}${shot('#f48b87', 'M128 137 L128 98')}<text x="126" y="132" font-size="24">🐝${motion('M0 0 L0 -89', 1.65)}</text><text x="113" y="27" font-size="20">⌂</text>`,
   wind: `<rect x="76" y="48" width="108" height="38" rx="18" fill="#fff0b8" opacity=".38"/><g>${circle(94,67,'#f48b87')}${circle(130,67,'#91d6a4')}${circle(166,67,'#89cbe9')}<animateTransform attributeName="transform" type="translate" from="0 0" to="20 0" dur=".55s" begin="1.45s" fill="freeze"/></g><text x="182" y="103" font-size="22" fill="#fff7df">→</text>${shot('#f4e982', 'M128 137 L128 104')}`,
+  bud: `<g>${circle(128,55,'#91d6a4')}${circle(128,55,'#f48b87', vanish())}<circle cx="135" cy="47" r="5" fill="#91d6a4" stroke="#fff7df" stroke-width="2">${vanish()}</circle><path d="M114 57 Q127 77 142 57" fill="none" stroke="#fff7df" stroke-width="2"/><text x="153" y="61" font-size="18" fill="#fff7df">◒</text></g>${circle(96,55,'#f48b87', vanish())}${shot('#f48b87', 'M128 137 L128 82')}<text x="88" y="24" font-size="12" fill="#fff7df">front → next</text>`,
+  echo: `${circle(79,55,'#f48b87', vanish())}${circle(111,55,'#f48b87', vanish())}${[ [143,55], [175,55], [159,83] ].map(([x,y]) => `${circle(x,y,'#89cbe9', `<animate attributeName="fill" from="#89cbe9" to="#f48b87" dur=".25s" begin="1.55s" fill="freeze"/>${vanish(2.15)}`)}<text x="${x-7}" y="${y+6}" font-size="17" fill="#fff7df">❋${vanish(2.15)}</text>`).join('')}${shot('#f48b87', 'M95 137 L95 81')}<path d="M120 100 Q148 116 179 100" fill="none" stroke="#fff7df" stroke-width="2" stroke-dasharray="3 4"/><text x="99" y="25" font-size="12" fill="#fff7df">pop → echo → pop</text>`,
   chameleon: `${circle(128,55,'#91d6a4', `<animate attributeName="fill" from="#91d6a4" to="#c9a1dc" dur=".4s" begin="1.35s" fill="freeze"/>`)}<circle cx="128" cy="55" r="11" fill="none" stroke="#c9a1dc" stroke-width="3"/><text x="182" y="59" font-size="22" fill="#fff7df">↻</text>${shot('#f4e982', 'M128 137 L128 99')}`
 };
 
@@ -35,6 +37,8 @@ const lessons: Record<number, Omit<Lesson, 'scene'> & { kind: keyof typeof scene
   11: { kind: 'dew', line: 'Crack dew first. Then clear the bubble.', description: 'The first hit removes a dew shell and leaves the bubble underneath.' },
   14: { kind: 'flight', line: 'Clear Mabel’s dotted route home.', description: 'Mabel flies along the open route after a blocking bubble clears.' },
   16: { kind: 'wind', line: 'The marked strip shifts every two shots.', description: 'After two shots the highlighted strip moves toward its arrow.' },
+  31: { kind: 'bud', line: 'Match the front. Reveal the fixed next color.', description: 'The red front of a Two-tone bud opens after a matching clear, revealing the green color shown on its small inner petal. The bee stays until the next clear or drop.' },
+  41: { kind: 'echo', line: 'Pop beside Echo petals to lend them your color.', description: 'A neighboring red match turns a touching Echo cluster red. Three connected red petals then pop in the same shot.' },
   19: { kind: 'chameleon', line: 'Chameleon flowers change color each shot.', description: 'The flower changes from green to purple after a shot.' }
 };
 

@@ -40,7 +40,13 @@ export const legacySaveKey = 'bramble-bubbles-save-v1';
 const volume = (value: unknown, fallback: number): number => typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : fallback;
 const count = (value: unknown): number => Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0;
 function numberArray(value: unknown): number[] {
-  return Array.isArray(value) ? value.slice(0, levels.length).map(count) : [];
+  // The campaign may grow without changing save version or the older indices.
+  // Keep an unplayed tail absent, rather than inventing clears or reward claims.
+  return Array.isArray(value) ? Array.from(value.slice(0, levels.length), count) : [];
+}
+
+function fillCountsThrough(values: number[], index: number): void {
+  for (let i = 0; i <= index; i += 1) if (values[i] === undefined) values[i] = 0;
 }
 
 function migrateJourney(value: unknown): JourneyData {
@@ -125,6 +131,9 @@ export function storeSave(save: SaveData, storage: Pick<Storage, 'setItem'> = lo
 }
 
 export function recordWin(save: SaveData, levelIndex: number, stars: number): void {
+  // A previously unlocked later meadow can be played before earlier gaps.
+  // Keep count arrays JSON-safe: sparse slots serialize as invalid null counts.
+  fillCountsThrough(save.stars, levelIndex);
   const first = !save.stars[levelIndex];
   save.stars[levelIndex] = Math.max(save.stars[levelIndex] || 0, stars);
   save.unlocked = Math.max(save.unlocked, Math.min(levels.length, levelIndex + 2));
@@ -132,6 +141,7 @@ export function recordWin(save: SaveData, levelIndex: number, stars: number): vo
 }
 
 export function recordLoss(save: SaveData, levelIndex: number): void {
+  fillCountsThrough(save.failures, levelIndex);
   save.failures[levelIndex] = (save.failures[levelIndex] || 0) + 1;
 }
 
@@ -140,8 +150,10 @@ export function refillGifts(save: SaveData): void {
 }
 
 export function gardenProgress(stars: number[]): { flowers: number; decorations: number; hive: number; bees: number } {
-  const flowers = stars.slice(0, 30).filter(Boolean).length;
-  const hive = [0, 10, 20].filter((start) => Array.from({ length: 10 }, (_, i) => stars[start + i] ?? 0).every((s) => s > 0)).length;
+  const campaignStars = stars.slice(0, levels.length);
+  const flowers = campaignStars.filter((star) => star > 0).length;
+  const hive = Array.from({ length: Math.floor(levels.length / 10) }, (_, chapter) => chapter * 10)
+    .filter((start) => Array.from({ length: 10 }, (_, i) => campaignStars[start + i] ?? 0).every((star) => star > 0)).length;
   return { flowers, decorations: Math.floor(flowers / 5), hive, bees: Math.min(8, flowers) };
 }
 

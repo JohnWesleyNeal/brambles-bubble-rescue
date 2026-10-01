@@ -55,9 +55,9 @@ export class GameEngine {
   challengeRelaxed = false;
   screenStunned = false;
 
-  constructor(level: LevelDefinition, readonly rulesVersion: 1 | 2 | 3 | 4 | 5 = 5, readonly activity?: Activity) {
+  constructor(level: LevelDefinition, readonly rulesVersion: 1 | 2 | 3 | 4 | 5 | 6 = 6, readonly activity?: Activity) {
     this.level = level;
-    this.board = new BubbleBoard(level.rows, level.specials);
+    this.board = new BubbleBoard(level.rows, level.specials, rulesVersion >= 6);
     this.totalBees = this.board.beeCount() + (this.flightPath ? 1 : 0);
     this.advanceFlight();
     this.rng = new SeededRandom(level.seed);
